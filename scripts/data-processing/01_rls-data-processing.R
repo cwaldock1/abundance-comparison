@@ -185,6 +185,13 @@ rls_subset_wide <- rls_sum %>%
 
 rls_abun <- rls_subset_wide
 
+# create fitting and validation sets
+fitting_set <- sample(1:nrow(rls_abun), round(0.8*nrow(rls_abun)), replace = F)
+fitting_set
+rls_abun_fitting    <- rls_abun[sort(fitting_set), ]
+rls_abun_validation <- rls_abun[-sort(fitting_set), ]
+sum(rls_abun_fitting$SiteCode %in% rls_abun_validation$SiteCode) # double check for non-overlap.
+
 # create a key for the common and rare classes for each species
 abundance_key <- left_join(data.frame(TAXONOMIC_NAME  = c(aa_af, ha_hf, ha_lf, la_hf, la_lf),
            abundance_class = ifelse(c(aa_af, ha_hf, ha_lf, la_hf, la_lf) %in% aa_af, 'average',
@@ -194,12 +201,4 @@ abundance_key <- left_join(data.frame(TAXONOMIC_NAME  = c(aa_af, ha_hf, ha_lf, l
                                                          'l_abun l_freq'))))), 
            species_properties)
 
-save(rls_abun, abundance_key, file = 'data/rls_abun_modelling_data.RData')
-
-
-
-
-
-
-
-
+save(rls_abun, rls_abun_fitting, rls_abun_validation, abundance_key, file = 'data/rls_abun_modelling_data.RData')
