@@ -8,6 +8,9 @@ lib_vect <- c('tidyverse', 'summarytools', 'rgdal')
 install.lib<-lib_vect[!lib_vect %in% installed.packages()]
 for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(lib_vect,require,character=TRUE)
+detach("package:raster", unload = TRUE)
+
+
 
 # read in rls data ----
 rls_raw  <- read.csv('raw-data/RLS-spatial-fish-data-extract.csv')
@@ -93,9 +96,18 @@ rls_sum <- rls_raw %>%
   rename(Num = Num_mean, Biomass = Biomass_mean) %>% 
   unique()
 
+# filter to ensure all species have 50 presences per species 
+species_50 <- rls_sum %>% 
+  filter(Num > 0) %>% 
+  group_by(TAXONOMIC_NAME) %>% 
+  do(n_per_species = length(unique(.$SiteCode))) %>% 
+  unnest(n_per_species) %>% 
+  filter(n_per_species > 50) %>% 
+  .$TAXONOMIC_NAME
+
 # estimating properties of species abundances ----
 
-# average frequency per species across the region (StateArea) it is present within
+# average frequency per species across the ecoregion it is present within
 freq <- rls_sum %>% 
   reshape2::dcast(SiteCode ~ TAXONOMIC_NAME, 
                   value.var = 'Num', 
@@ -129,7 +141,7 @@ hist(log(abun$mean_abundance))
 species_properties <- left_join(abun,freq)
 
 # remove species with mean abundance < 3
-species_properties <- species_properties %>% filter(mean_abundance >=3)
+species_properties <- species_properties %>% filter(mean_abundance >=3) %>% filter(TAXONOMIC_NAME %in% species_50)
 
 # remove unknown species
 species_properties <- species_properties[-which(grepl('spp.', species_properties$TAXONOMIC_NAME, fixed = T)),]
@@ -159,8 +171,8 @@ species_properties %>% filter(mean_abundance_perc > 0.1, mean_abundance_perc < 0
   .$TAXONOMIC_NAME %>% as.character %>% .[1:10] -> la_hf
 
 # low abundance low frequency 
-species_properties %>% filter(mean_abundance_perc > 0.1, mean_abundance_perc < 0.3, 
-                              frequency_perc > 0.1, frequency_perc < 0.3) %>% 
+species_properties %>% filter(mean_abundance_perc > 0.05, mean_abundance_perc < 0.3, 
+                              frequency_perc > 0.05, frequency_perc < 0.3) %>% 
   .[order(.$mean_abundance_perc,.$frequency_perc, decreasing = F),] %>% 
   .$TAXONOMIC_NAME %>% as.character %>% .[1:10] -> la_lf
 
@@ -182,6 +194,9 @@ rls_subset_wide <- rls_sum %>%
   spread(key = TAXONOMIC_NAME, value = Num, fill = 0) %>% 
   .[,which(colnames(.) %in% c('SiteCode', 'SiteLatitude', 'SiteLongitude', 
                               aa_af, ha_hf, ha_lf, la_hf, la_lf))]
+
+# check that all species are present in x number of cells 
+rls_subset_wide
 
 rls_abun <- rls_subset_wide
 
