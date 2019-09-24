@@ -115,16 +115,18 @@ sum(is.na(bio_orc_ext))
 view(dfSummary(bio_orc_ext))
 
 # estimate principal components using robust pca
-bio_orc_ext <- scale(bio_orc_ext, scale = T, center = T)
-resRobSvd <- pcaMethods::pca(bio_orc_ext, 
+bio_orc_ext_scaled <- scale(bio_orc_ext, scale = T, center = T)
+resRobSvd <- pcaMethods::pca(bio_orc_ext_scaled, 
                              method = "robustPca", 
                              center = F, 
-                             scale = NULL, nPcs = dim(bio_orc_ext)[2])
+                             scale = NULL, 
+                             nPcs = dim(bio_orc_ext)[2])
 
-resRobSvd # 6 loadings appear important
-Loadings      <- resRobSvd@loadings[,1:6]
+resRobSvd # 6 loadings appear important and explain 75% variation, and all more than 1%
+Loadings <- resRobSvd@loadings[,1:6]
 Loadings <- reshape2::melt(Loadings)
 
+pdf(file = 'figures/robustPCA-env-covariates.pdf', width = 7.5, height = 7.5)
 ggplot(Loadings) + 
   geom_bar(aes(x = Var1, y = value, fill = value), stat = 'identity') +
   theme_bw() + 
@@ -132,6 +134,7 @@ ggplot(Loadings) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = 'none', aspect.ratio = 1)+
   scale_fill_gradientn(colours = c("#00AFBB", "#E7B800", "#FC4E07")) + 
   ylab('Dimension 1') + xlab(NULL) 
+dev.off()
 
 slplot(resRobSvd, scoresLoadings = c(T,T))
 biplot(resRobSvd)
@@ -147,5 +150,22 @@ bio_orc_ext$robPCA_6 <- as.numeric(resRobSvd@scores[,6])
 
 # bind to rls
 rls_xy <- cbind(rls_xy, bio_orc_ext)
+
+
+
+
+
+
+
+
+
+
+# msec (having issues downloading...) ----
+
+# save rls_xy ----
+save(rls_xy, file = 'data/rls_covariates.RData')
+
+
+
 
 
