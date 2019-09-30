@@ -4,40 +4,42 @@
 # remotes::install_github("cvoeten/buildmer"); https://github.com/cvoeten/buildmer
 
 # load in abundance data
-#load("data/rls_abun_modelling_data.RData")
-#abundance = rls_abun_fitting
+load("data/rls_abun_modelling_data.RData")
+abundance = rls_abun_fitting
 
 # load in covariates
-#load("data/rls_covariates.RData")
-#covariates = rls_xy[c('SiteCode', 'SiteLongitude', 'SiteLatitude',
-#                      'Depth_GEBCO', 
-#                      'robPCA_1', 'robPCA_2', 'robPCA_3', 'robPCA_4', 'robPCA_5', 'robPCA_6')]
+load("data/rls_covariates.RData")
+covariates = rls_xy[c('SiteCode', 'SiteLongitude', 'SiteLatitude',
+                      'Depth_GEBCO', 
+                      'robPCA_1', 'robPCA_2', 'robPCA_3', 'robPCA_4', 'robPCA_5', 'robPCA_6')]
 #rls_xy = rls_xy[c('SiteCode', 'SiteLongitude', 'SiteLatitude',
 #                   'Depth_GEBCO', 
 #                   'robPCA_1', 'robPCA_2', 'robPCA_3', 
 #                   'robPCA_4', 'robPCA_5', 'robPCA_6')]
 
 # get species names
-# species_name <- as.character(names(abundance)[10])
+species_name <- as.character(names(abundance)[10])
 
 # model
-# model <- 'glm'
+model <- 'glm'
 
 # transformation
-# transformation = NA
+transformation = NA
 
 # family
-# family = 'poisson'
+#family = 'poisson'
+family = 'tweedie'
 
 # function to fit glms
 glm_function <- function(abundance = abundance, 
                          covariates = covariates, 
                          transformation = NA, # option is NA, log, log10
                          model = NA, # option is lm or glm
-                         family = NA, # option is NA, poisson, or nbinom 
+                         family = NA, # option is NA, poisson, or nbinom, or tweedie
                          zi = F,     # option is F or T
                          species_name = species_name, 
                          base_dir = 'results/modelfits'){
+  require(tidyverse)
   require(glmmTMB)
   require(buildmer)
   
@@ -74,34 +76,30 @@ glm_function <- function(abundance = abundance,
   covNames_combined <- paste0(c(covNames_new, covNames_new_2), collapse = '+')
   model_formula <- as.formula(paste0(response, covNames_combined))
   
-  # renames abundance object
-  #for(i in 1:length(covNames_new)){names(abundance)[4+i] <- covNames_new[i]}
-  
   # build formula structure using buildmer
   model_tab <- tabulate.formula(model_formula)
   model_tab[-1, 'block'] <- rep(covNames_new, 2)
     
   if(model == 'lm'){
-    
-    
+  
   # fit model with backwards stepwise regression
   model_fit <- buildglmmTMB(formula = model_tab,
                             data = abundance, 
                             dep = 'abundance') 
   
   # remove quadratic terms that are non-significant and refit model
-  coef_table       <- coef(summary(model_fit))$cond              # get coefficient table
-  coef_table_ns    <- coef_table[which(coef_table[,4] > 0.05),]  # get coefficients to remove
-  grep_ns <- grep('I(', rownames(coef_table_ns), fixed = T)
+  coef_table       <- coef(summary(model_fit))$cond               # get coefficient table
+  coef_names       <- rownames(coef(summary(model_fit))$cond)[-1]
+  coef_names_ns    <- coef_names[which(coef_table[-1,4] > 0.05)]  # get coefficients to remove
   
-  if(length(coef_table_ns) != 0 & length(grep_ns) != 0){
-  non_signif_quads <- rownames(coef_table_ns)[grep('I(', rownames(coef_table_ns), fixed = T)] # get non-significant quadraties from table
-  model_tab_2 <- model_tab[which(model_tab$term %in% rownames(coef_table)),]    # subset model_tab by significant terms
-  model_tab_2 <- model_tab_2[-which(model_tab_2$term %in% non_signif_quads), ]  # create new model_tab
-  model_tab_2 <- rbind(model_tab[1,], model_tab_2) # put back intercept
-  
+  # if there are non-significant I(cov^2) terms
+  if(sum(grepl('I(', coef_names_ns, fixed = T)) > 0){
+    model_terms <- coef_names[-which(coef_names %in% coef_names_ns[grep('I(', coef_names_ns, fixed = T)])] # get non-significant quadraties from table
+    model_tab_2 <- model_tab[which(model_tab$term %in% model_terms),]    # subset model_tab by all significant terms
+    model_tab <- rbind(model_tab[1,], model_tab_2) # put back intercept
+    
   # refit model
-  model_fit <- buildglmmTMB(formula = model_tab_2,
+  model_fit <- buildglmmTMB(formula = model_tab,
                             data = abundance, 
                             dep = 'abundance')
 
@@ -113,7 +111,8 @@ glm_function <- function(abundance = abundance,
     
     
     # fit model with backwards stepwise regression
-    if(!family %in% c('poisson', 'nbinom')){stop('family for glm must be one of poisson or nbinom')}
+    if(!family %in% c('poisson', 'nbinom', 'tweedie')){stop('family for glm must be one of poisson or nbinom')}
+    
     if(family == 'poisson'){model_fit <- buildglmmTMB(formula = model_tab,
                               data = abundance, 
                               dep = 'abundance', 
@@ -124,16 +123,22 @@ glm_function <- function(abundance = abundance,
                                                       dep = 'abundance', 
                                                       family = nbinom1(link = 'log'))}
     
-    # remove quadratic terms that are non-significant and refit model
-    coef_table       <- coef(summary(model_fit))$cond              # get coefficient table
-    coef_table_ns    <- coef_table[which(coef_table[,4] > 0.05),]  # get coefficients to remove
-    grep_ns <- grep('I(', rownames(coef_table_ns), fixed = T)
+    if(family == 'tweedie'){model_fit <- buildglmmTMB(formula = model_tab,
+                                                     data = abundance, 
+                                                     dep = 'abundance', 
+                                                     family = tweedie(link = 'log'))}
     
-    if(length(coef_table_ns) != 0 & length(grep_ns) != 0){
-      non_signif_quads <- rownames(coef_table_ns)[grep('I(', rownames(coef_table_ns), fixed = T)] # get non-significant quadraties from table
-      model_tab_2 <- model_tab[which(model_tab$term %in% rownames(coef_table)),]    # subset model_tab by significant terms
-      model_tab_2 <- model_tab_2[-which(model_tab_2$term %in% non_signif_quads), ]  # create new model_tab
-      model_tab_2 <- rbind(model_tab[1,], model_tab_2) # put back intercept
+    # remove quadratic terms that are non-significant and refit model
+    coef_table       <- coef(summary(model_fit))$cond               # get coefficient table
+    coef_names       <- rownames(coef(summary(model_fit))$cond)[-1]
+    coef_names_ns    <- coef_names[which(coef_table[-1,4] > 0.05)]  # get coefficients to remove
+    
+    # if there are non-significant I(cov^2) terms
+    if(sum(grepl('I(', coef_names_ns, fixed = T)) > 0){
+      
+    model_terms <- coef_names[-which(coef_names %in% coef_names_ns[grep('I(', coef_names_ns, fixed = T)])] # get non-significant quadraties from table
+    model_tab_2 <- model_tab[which(model_tab$term %in% model_terms),]    # subset model_tab by all significant terms
+    model_tab <- rbind(model_tab[1,], model_tab_2) # put back intercept
       
       # refit model
       if(family == 'poisson'){model_fit <- buildglmmTMB(formula = model_tab,
@@ -146,6 +151,10 @@ glm_function <- function(abundance = abundance,
                                                        dep = 'abundance', 
                                                        family = nbinom1(link = 'log'))}
       
+      if(family == 'tweedie'){model_fit <- buildglmmTMB(formula = model_tab,
+                                                        data = abundance, 
+                                                        dep = 'abundance', 
+                                                        family = tweedie(link = 'log'))}
       
     }else{print('All terms are significant')}
     
@@ -160,15 +169,21 @@ glm_function <- function(abundance = abundance,
     model_structure <- formula(model_fit@model)
     zi_formula <- formula(paste('~', paste(attr(terms(model_structure), 'term.labels'), collapse = '+')))
     
-    if(family == 'poisson'){model_fit <- glmmTMB(formula = model_tab,
+    if(family == 'poisson'){model_fit <- glmmTMB(formula = model_structure,
                                                  zi = zi_formula, 
                                                  data = abundance, 
                                                  family = 'poisson')}
     
-    if(family == 'nbinom'){model_fit <- glmmTMB(formula = model_tab,
+    if(family == 'nbinom'){model_fit <- glmmTMB(formula = model_structure,
                                                 zi = zi_formula,
                                                 data = abundance,                   
                                                 family = nbinom1(link = 'log'))}
+    
+    if(family == 'tweedie'){model_fit <- glmmTMB(formula = model_structure,
+                                                zi = zi_formula,
+                                                data = abundance,                   
+                                                family = tweedie(link = 'log'))}
+    
     
   }
   

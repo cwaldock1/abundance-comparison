@@ -25,8 +25,8 @@ FillSiteNAs <- function(StackLayer, # Environmental stack layer
 # load packages ----
 # pca methods requires special install
 if (!requireNamespace("BiocManager", quietly = TRUE))
-  install.packages("BiocManager")
-BiocManager::install("pcaMethods")
+# install.packages("BiocManager")
+# BiocManager::install("pcaMethods")
 
 # load/install other packages for script
 lib_vect <- c('tidyverse', 'rgdal', 'raster', 'maptools', 'summarytools')
@@ -100,7 +100,7 @@ dev.off(); plot(bio_orc_stack)
 
 # find NAs
 for(i in 1:length(names(bio_orc_stack))){
-  
+  print(i)
   bio_orc_stack[[i]] <- FillSiteNAs(StackLayer = bio_orc_stack[[i]], RLS_Sites = rls_points)
   
 }
@@ -151,16 +151,54 @@ bio_orc_ext$robPCA_6 <- as.numeric(resRobSvd@scores[,6])
 # bind to rls
 rls_xy <- cbind(rls_xy, bio_orc_ext)
 
+# msec ----
 
+# read in various layers
+human_pop  <- list.files(path='raw-data/MSECData_Yeager2017',pattern='nc$',full.names = T)[c(3)]
+msec  <- list.files(path='raw-data/MSECData_Yeager2017',pattern='nc$',full.names = T)[c(13,14)]
 
+# stack and rotate layers
+preds_MSEChuman <- stack(human_pop)
+preds_MSEChuman <- preds_MSEChuman$X2015
+preds_MSEC      <- stack(msec)
+preds_MSEChuman <- rotate(preds_MSEChuman)
+preds_MSEC      <- rotate(preds_MSEC)
+crs(preds_MSEChuman)     <- Proj
+crs(preds_MSEC)          <- Proj
 
+# stack for simplicity
+MSEC <- stack(preds_MSEChuman, preds_MSEC)
 
+# rename
+names(MSEC) <- c('human_pop_2015_50km', 'reef_area_200km', 'wave_energy_mean')
 
+# check distributions
+hist(log10(MSEC$human_pop_2015_50km+1))
+hist(log10(MSEC$reef_area_200km + 1))
+hist(log10(MSEC$wave_energy_mean + 1))
 
+# change values
+MSEC$human_pop_2015_50km <- calc(MSEC$human_pop_2015_50km, function(x) scale(log10(x+1)))
+MSEC$reef_area_200km     <- calc(MSEC$reef_area_200km, function(x) scale(log10(x+1)))
+MSEC$wave_energy_mean    <- calc(MSEC$wave_energy_mean, function(x) scale(log10(x+1)))
 
+# perform extractions
+for(i in 1:length(names(MSEC))){
+  
+  MSEC[[i]] <- FillSiteNAs(StackLayer = MSEC[[i]], RLS_Sites = rls_points)
+  
+}
 
+# extract points
+MSEC_ext <- data.frame(extract(MSEC, rls_points))
 
-# msec (having issues downloading...) ----
+# bind to rls_xy object
+rls_xy <- cbind(rls_xy, MSEC_ext)
+
+# transform, scale and centre all non-pca variables ---- 
+rls_xy$Depth_GEBCO[which(rls_xy$Depth_GEBCO > 0)] <- 0 # lose the differentiation between land and sea.
+hist(log10(round(abs(rls_xy$Depth_GEBCO+1))))
+rls_xy$Depth_GEBCO_transformed <- log10(round(abs(rls_xy$Depth_GEBCO+1)))
 
 # save rls_xy ----
 save(rls_xy, file = 'data/rls_covariates.RData')
