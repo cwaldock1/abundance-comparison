@@ -2,6 +2,7 @@
 # The output of this script is a data object that has 
 # 1. species by xy matrix
 # 2. species by prevalence and mean abundance matrix and class
+options("scipen"=5, "digits"=5)
 
 # load packages ----
 lib_vect <- c('tidyverse', 'summarytools', 'rgdal')
@@ -11,12 +12,12 @@ sapply(lib_vect,require,character=TRUE)
 detach("package:raster", unload = TRUE)
 
 
-
 # read in rls data ----
 rls_raw  <- read.csv('raw-data/RLS-spatial-fish-data-extract.csv')
 rls_meta <- read.csv('raw-data/RLS-site-subset-metadata.csv')
 rls_meta$SiteCode <- as.character(rls_meta$SiteCode)
 meow     <- readOGR(dsn = "raw-data/MEOW", layer = "meow_ecos")
+
 
 # data structure ----
 
@@ -183,29 +184,72 @@ species_properties %>% filter(mean_abundance_perc > 0.4, mean_abundance_perc < 0
   .$TAXONOMIC_NAME %>% as.character %>% .[1:10] -> aa_af
 
 
-# create wide dataset from all sites ----
+# filter to species that we are interested in (defined above)
+rls_sum <- rls_sum %>% filter(TAXONOMIC_NAME %in% c(aa_af, ha_hf, ha_lf, la_hf, la_lf))
 
-# create a species by site matrix and aggregate across size-classes
-rls_subset_wide <- rls_sum %>% 
-  select(SiteCode, SiteLatitude, SiteLongitude, TAXONOMIC_NAME, Num) %>% 
-  #reshape2::dcast(SiteCode ~ TAXONOMIC_NAME, 
-  #                fun.aggregate = function(x) mean(x, na.rm = T), 
-  #                fill = 0) %>% 
-  spread(key = TAXONOMIC_NAME, value = Num, fill = 0) %>% 
-  .[,which(colnames(.) %in% c('SiteCode', 'SiteLatitude', 'SiteLongitude', 
-                              aa_af, ha_hf, ha_lf, la_hf, la_lf))]
+# create species-specific datasets including 0s from an object with all available sites ----
 
-# check that all species are present in x number of cells 
-rls_subset_wide
+source('scripts/data-processing/get_buffered_absences.R')
 
-rls_abun <- rls_subset_wide
+# obtain object with all sites 
+rls_sites <- rls_meta %>% select(SiteCode, SiteLatitude, SiteLongitude) %>% unique()
+
+# obtain only numerical abundance from our focal species
+rls_site_abun <- rls_sum %>% select(SiteCode, SiteLatitude, SiteLongitude, TAXONOMIC_NAME, Num)
+
+# create a list object that contains absences and presences
+rls_sum_absences <- lapply(1:length(unique(rls_site_abun$TAXONOMIC_NAME)), FUN = function(x){
+                          
+                           print(x)
+  
+                           get_buffered_absences(presences = rls_site_abun %>% 
+                                                   filter(TAXONOMIC_NAME == unique(rls_site_abun$TAXONOMIC_NAME)[x]), 
+                                                 sites = rls_sites)
+                           
+                           })
+
+
+# create fitting and validation sets ----
+
+# I should take 80%/20% of BOTH the abundance and absences (rather than a subsample of the whole dataset)
+set.seed(123)
+
+rls_model_data <- lapply(rls_sum_absences, function(x){
+  
+  all_absences  <- x %>% filter(Num == 0)  # absences
+  all_presences <- x %>% filter(Num != 0)  # presences
+  absences_sample_fitting  <- sample(1:nrow(all_absences), round(nrow(all_absences)*0.8), replace = F)
+  presences_sample_fitting <- sample(1:nrow(all_presences), round(nrow(all_presences)*0.8), replace = F)
+  absences_sample_validation <- setdiff(1:nrow(all_absences), absences_sample_fitting)
+  presence_sample_validation <- setdiff(1:nrow(all_presences), absences_sample_fitting)
+  
+  all_absences[absences_sample_fitting,]     # absences - fitting
+  all_presences[presences_sample_fitting,]   # presences - fitting
+  all_absences[absences_sample_validation,]  # absences - validation
+  all_presences[presence_sample_validation,] # presences - validation
+  
+  fitting    <- rbind(all_absences[absences_sample_fitting,],    all_presences[presences_sample_fitting,])
+  validation <- rbind(all_absences[absences_sample_validation,], all_presences[presence_sample_validation,])
+  
+  fitting$set    <- 'fitting'
+  validation$set <- 'validation'
+  
+  list_outputs <- list(list(fitting = fitting, validation = validation))
+  names(list_outputs) <- unique(rls_sum_absences[[1]]$TAXONOMIC_NAME)
+  
+  return(list_outputs)
+  
+})
+
+rls_abun_fitting <- lapply(rls_model_data, function(x) x[[1]][[1]])
+rls_abun_validation <- lapply(rls_model_data, function(x) x[[1]][[2]])
 
 # create fitting and validation sets
-fitting_set <- sample(1:nrow(rls_abun), round(0.8*nrow(rls_abun)), replace = F)
-fitting_set
-rls_abun_fitting    <- rls_abun[sort(fitting_set), ]
-rls_abun_validation <- rls_abun[-sort(fitting_set), ]
-sum(rls_abun_fitting$SiteCode %in% rls_abun_validation$SiteCode) # double check for non-overlap.
+# fitting_set <- sample(1:nrow(rls_abun), round(0.8*nrow(rls_abun)), replace = F)
+# fitting_set
+# rls_abun_fitting    <- rls_abun[sort(fitting_set), ]
+# rls_abun_validation <- rls_abun[-sort(fitting_set), ]
+# sum(rls_abun_fitting$SiteCode %in% rls_abun_validation$SiteCode) # double check for non-overlap.
 
 # create a key for the common and rare classes for each species
 abundance_key <- left_join(data.frame(TAXONOMIC_NAME  = c(aa_af, ha_hf, ha_lf, la_hf, la_lf),
@@ -216,4 +260,4 @@ abundance_key <- left_join(data.frame(TAXONOMIC_NAME  = c(aa_af, ha_hf, ha_lf, l
                                                          'l_abun l_freq'))))), 
            species_properties)
 
-save(rls_abun, rls_abun_fitting, rls_abun_validation, abundance_key, file = 'data/rls_abun_modelling_data.RData')
+save(rls_model_data, rls_abun_fitting, rls_abun_validation, abundance_key, file = 'data/rls_abun_modelling_data_v2.RData')
