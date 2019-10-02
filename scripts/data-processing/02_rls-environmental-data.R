@@ -3,7 +3,7 @@
 # custom function to fill NAs with nearest neighbour ----
 # This set of functions  replaces all NAs that are found in the raster with a nearest neighbour. Very slow. 
 sample_raster_NA <- function(r, xy){
-  apply(X = xy, MARGIN = 1, 
+  apply(X = xy, MARGIN = 1, # edit the [1,]
         FUN = function(xy) r@data@values[raster::which.min(replace(distanceFromPoints(r, xy), is.na(r), NA))])
 }
 
@@ -16,7 +16,7 @@ FillSiteNAs <- function(StackLayer, # Environmental stack layer
   xy <- RLS_Sites@coords[is.na(extract(StackLayer, RLS_Sites)),]
   
   # Match to the nearest raster cell using a pre-defined function 
-  NA_coords <- sample_raster_NA(r = StackLayer, xy = xy)
+  NA_coords <- force(sample_raster_NA(r = StackLayer, xy = xy))
   StackLayer[cellFromXY(StackLayer, as.matrix(xy))] <- NA_coords
   return(StackLayer)
   
@@ -24,9 +24,8 @@ FillSiteNAs <- function(StackLayer, # Environmental stack layer
 
 # load packages ----
 # pca methods requires special install
-if (!requireNamespace("BiocManager", quietly = TRUE))
-# install.packages("BiocManager")
-# BiocManager::install("pcaMethods")
+if(!requireNamespace("BiocManager", quietly = TRUE)){install.packages("BiocManager")
+BiocManager::install("pcaMethods")}
 
 # load/install other packages for script
 lib_vect <- c('tidyverse', 'rgdal', 'raster', 'maptools', 'summarytools')
@@ -40,12 +39,11 @@ sapply(lib_vect,require,character=TRUE)
 Proj <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"
 
 # load data
-load(file = 'data/rls_abun_modelling_data.RData')
-rls_xy     <- data.frame(SiteCode = rls_abun$SiteCode, SiteLongitude = rls_abun$SiteLongitude, SiteLatitude = rls_abun$SiteLatitude)
-rls_points <- SpatialPoints(cbind(rls_abun$SiteLongitude, rls_abun$SiteLatitude), proj4string = crs(Proj))
+load(file = 'data/rls_abun_modelling_data_v2.RData')
+rls_xy     <- data.frame(SiteLongitude = rls_abun$SiteLongitude, SiteLatitude = rls_abun$SiteLatitude) %>% unique()
+rls_points <- SpatialPoints(cbind(rls_abun$SiteLongitude, rls_abun$SiteLatitude) %>% unique(), proj4string = crs(Proj))
 
 # load in and standardise environmental layers ----
-
 
 # species distribution models will be build from the best resolution data available rather than comforming to a single grid
 # this is because we are not evaluating the spatial distribution of the species distributions but instead just modelling the parameters
@@ -55,7 +53,7 @@ rls_points <- SpatialPoints(cbind(rls_abun$SiteLongitude, rls_abun$SiteLatitude)
 # https://www.gebco.net/data_and_products/gridded_bathymetry_data/ 
 # new data for 2019. 
 depth <- raster("raw-data/GEBCO_2019/GEBCO_2019.nc", CRS = Proj)
-plot(depth)
+# plot(depth)
 rls_xy$Depth_GEBCO <- raster::extract(depth, rls_points)
 
 # bio-oracle-v2 ----
@@ -101,8 +99,7 @@ dev.off(); plot(bio_orc_stack)
 # find NAs
 for(i in 1:length(names(bio_orc_stack))){
   print(i)
-  bio_orc_stack[[i]] <- FillSiteNAs(StackLayer = bio_orc_stack[[i]], RLS_Sites = rls_points)
-  
+  bio_orc_stack[[i]] <- force(FillSiteNAs(StackLayer = bio_orc_stack[[i]], RLS_Sites = rls_points))
 }
 
 # extract
@@ -136,7 +133,7 @@ ggplot(Loadings) +
   ylab('Dimension 1') + xlab(NULL) 
 dev.off()
 
-slplot(resRobSvd, scoresLoadings = c(T,T))
+#slplot(resRobSvd, scoresLoadings = c(T,T))
 biplot(resRobSvd)
 plotPcs(resRobSvd)
 
@@ -169,13 +166,16 @@ crs(preds_MSEC)          <- Proj
 # stack for simplicity
 MSEC <- stack(preds_MSEChuman, preds_MSEC)
 
+# crop
+MSEC <- crop(MSEC, bbox(rls_points) + c(-1, -1, 1, 1))
+
 # rename
 names(MSEC) <- c('human_pop_2015_50km', 'reef_area_200km', 'wave_energy_mean')
 
 # check distributions
-hist(log10(MSEC$human_pop_2015_50km+1))
-hist(log10(MSEC$reef_area_200km + 1))
-hist(log10(MSEC$wave_energy_mean + 1))
+#hist(log10(MSEC$human_pop_2015_50km+1))
+#hist(log10(MSEC$reef_area_200km + 1))
+#hist(log10(MSEC$wave_energy_mean + 1))
 
 # change values
 MSEC$human_pop_2015_50km <- calc(MSEC$human_pop_2015_50km, function(x) scale(log10(x+1)))
@@ -184,21 +184,29 @@ MSEC$wave_energy_mean    <- calc(MSEC$wave_energy_mean, function(x) scale(log10(
 
 # perform extractions
 for(i in 1:length(names(MSEC))){
-  
-  MSEC[[i]] <- FillSiteNAs(StackLayer = MSEC[[i]], RLS_Sites = rls_points)
-  
+  print(i)
+  MSEC[[i]] <- force(FillSiteNAs(StackLayer = MSEC[[i]], RLS_Sites = rls_points))
 }
 
 # extract points
 MSEC_ext <- data.frame(extract(MSEC, rls_points))
 
+# check for NAs
+table(is.na(MSEC_ext))
+
 # bind to rls_xy object
 rls_xy <- cbind(rls_xy, MSEC_ext)
+
+# check for any NAs
+table(is.na(rls_xy))
 
 # transform, scale and centre all non-pca variables ---- 
 rls_xy$Depth_GEBCO[which(rls_xy$Depth_GEBCO > 0)] <- 0 # lose the differentiation between land and sea.
 hist(log10(round(abs(rls_xy$Depth_GEBCO+1))))
-rls_xy$Depth_GEBCO_transformed <- log10(round(abs(rls_xy$Depth_GEBCO+1)))
+rls_xy$Depth_GEBCO_transformed <- log10(round(abs(rls_xy$Depth_GEBCO)+1))
+
+# check for any NAs
+table(is.na(rls_xy))
 
 # save rls_xy ----
 save(rls_xy, file = 'data/rls_covariates.RData')
