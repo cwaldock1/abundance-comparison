@@ -241,9 +241,12 @@ rls_model_data <- lapply(rls_sum_absences, function(x){
   
 })
 
-rls_abun_fitting <- lapply(rls_model_data, function(x) x[[1]][[1]])
+# create outputs to save - this is the random validation
+rls_abun_fitting    <- lapply(rls_model_data, function(x) x[[1]][[1]])
 rls_abun_validation <- lapply(rls_model_data, function(x) x[[1]][[2]])
-
+rls_abun_list       <- rls_model_data
+rls_abun            <- rbind(do.call(rbind, rls_abun_fitting), do.call(rbind, rls_abun_validation))
+  
 # create fitting and validation sets
 # fitting_set <- sample(1:nrow(rls_abun), round(0.8*nrow(rls_abun)), replace = F)
 # fitting_set
@@ -260,4 +263,8 @@ abundance_key <- left_join(data.frame(TAXONOMIC_NAME  = c(aa_af, ha_hf, ha_lf, l
                                                          'l_abun l_freq'))))), 
            species_properties)
 
-save(rls_model_data, rls_abun_fitting, rls_abun_validation, abundance_key, file = 'data/rls_abun_modelling_data_v2.RData')
+save(rls_abun, # whole data object as datafrane
+     rls_abun_list, # data object as list
+     rls_abun_fitting, # listed fitting data
+     rls_abun_validation, # list validation data
+     abundance_key, file = 'data/rls_abun_modelling_data_v2.RData')
