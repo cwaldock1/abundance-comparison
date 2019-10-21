@@ -4,34 +4,34 @@
 # remotes::install_github("cvoeten/buildmer"); https://github.com/cvoeten/buildmer
 
 # load in abundance data
-load("data/rls_abun_modelling_data_v2.RData")
-abundance = rls_abun_fitting[[1]]
+#load("data/rls_abun_modelling_data_v2.RData")
+#abundance = rls_abun_fitting[[1]]
 
 # load in covariates
-load("data/rls_covariates.RData")
-covariates = rls_xy[c('SiteLongitude', 'SiteLatitude',
-                      'Depth_GEBCO', 
-                      'robPCA_1', 'robPCA_2', 'robPCA_3', 'robPCA_4', 'robPCA_5', 'robPCA_6')]
+#load("data/rls_covariates.RData")
+#covariates = rls_xy[c('SiteLongitude', 'SiteLatitude',
+#                      'Depth_GEBCO', 
+#                      'robPCA_1', 'robPCA_2', 'robPCA_3', 'robPCA_4', 'robPCA_5', 'robPCA_6')]
 
 # get species names
-species_name <- unique(abundance$TAXONOMIC_NAME)
+#species_name <- unique(abundance$TAXONOMIC_NAME)
 
 # model
-model <- 'glm'
+#model <- 'glm'
 
 # transformation
-transformation = NA
+#transformation = NA
 
 # family
-family = 'poisson'
+#family = 'poisson'
 #family = 'tweedie'
 
 # zi
-zi = F
+#zi = F
 
 # load verification and validation data
 # verification     = rls_abun_fitting[[1]][,c(2,3,5)] # this isn't needed as the verification is simply the data put into the model
-validation         = rls_abun_validation[[1]]
+#validation         = rls_abun_validation[[1]]
 
 
 # function to fit glms
@@ -61,7 +61,7 @@ glm_function_boot <- function(abundance = abundance,
   names(validation)[3] <- 'abundance'
   
   # join together abundance and covariates dataframes 
-  abundance <- left_join(abundance, covariates)
+  abundance  <- left_join(abundance, covariates)
   validation <- left_join(validation, covariates)
   
   # apply appropriate transformation
@@ -108,6 +108,7 @@ glm_function_boot <- function(abundance = abundance,
   validation_predict    <- list() # bootstrapped predictions from validation data 
   
   # for loop to create the bootstraps and fit the models 
+  n_bootstrap <- ifelse(sum(abundance$abundance %in% 0) > 0, n_bootstrap, 1)
   for(boot in 1:n_bootstrap){
     set.seed(123)
     seed_123 <- sample(1:1000, n_bootstrap, replace = F)
@@ -120,7 +121,7 @@ glm_function_boot <- function(abundance = abundance,
     
     # get absence 
     set.seed(seed_123[[boot]])
-    boot_absence <- abundance[sample(which(abundance$abundance == 0), n_subsample, replace = F),]
+    if(sum(abundance$abundance %in% 0) > 0){boot_absence <- abundance[sample(which(abundance$abundance == 0), n_subsample, replace = F),]}else{boot_absence <- NULL}
     
     # combine absence and presence
     abundance_boot[[boot]] <- rbind(abundance_only, boot_absence) # this also acts as the verification of the model
@@ -239,11 +240,13 @@ glm_function_boot <- function(abundance = abundance,
     
     # make validations
     # predict data using verification
-    verification_predict[[boot]]  <- predict(model_fit[[boot]]@model, data.frame(abundance_boot[[boot]]), type = 'response')
+    if(zi != T){verification_predict[[boot]]  <- predict(model_fit[[boot]]@model, data.frame(abundance_boot[[boot]]), type = 'response')}
+    if(zi == T){verification_predict[[boot]]  <- predict(model_fit[[boot]], data.frame(abundance_boot[[boot]]), type = 'response')}
     verification_observed[[boot]] <- abundance_boot[[boot]]$abundance
       
     # predict data using validation
-    validation_predict[[boot]]  <- predict(model_fit[[boot]]@model, data.frame(validation), type = 'response')
+    if(zi != T){validation_predict[[boot]]  <- predict(model_fit[[boot]]@model, data.frame(validation), type = 'response')}
+    if(zi == T){validation_predict[[boot]]  <- predict(model_fit[[boot]], data.frame(validation), type = 'response')}
     validation_observed[[boot]] <- validation$abundance
     
     # convert all values back to raw abundances
@@ -266,13 +269,15 @@ glm_function_boot <- function(abundance = abundance,
   
   extracted_predictions <- tibble(dataset = dataset, 
                                   species_name = species_name, 
+                                  
                                   fitted_model = 'glm', 
+                                  only_abundance = if(sum(abundance$abundance %in% 0) > 0){F}else{T},
                                   family  = family, 
                                   transformation = transformation, 
                                   zi = zi,
-                                  n_abundance = nrow(abundance_only), 
-                                  n_absence   = nrow(abundance[which(abundance$abundance == 0),]),
-                                  n_boot_absence = nrow(boot_absence), 
+                                  n_abundance    = nrow(abundance_only), 
+                                  n_absence      = if(sum(abundance$abundance %in% 0) > 0){nrow(abundance[which(abundance$abundance == 0),])}else{0},
+                                  n_boot_absence = if(sum(abundance$abundance %in% 0) > 0){nrow(boot_absence)}else{0}, 
                                   
                                   # estimate mean predictions
                                   verification_observed_mean = list(apply(simplify2array(verification_observed), 1, mean)),# list(verification_observed), 
@@ -288,7 +293,10 @@ glm_function_boot <- function(abundance = abundance,
                                   
                                   # the amount of variation caused by bootstrapping to random 0s
                                   sd_verification = mean(apply(simplify2array(verification_predict), 1, sd)), 
-                                  sd_validation   = mean(apply(simplify2array(validation_predict), 1, sd)))
+                                  sd_validation   = mean(apply(simplify2array(validation_predict), 1, sd)), 
+                                  
+                                  verification_locations = list(data.frame(SiteLongitude = abundance$SiteLongitude, SiteLatitude = abundance$SiteLatitude)), 
+                                  validation_locations = list(data.frame(SiteLongitude = validation$SiteLongitude, SiteLatitude = validation$SiteLatitude)))
   
   # save model output into appropriate folder system
   # transformation/model/family/zi/
