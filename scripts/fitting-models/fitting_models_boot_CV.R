@@ -11,9 +11,9 @@ print(i)
 # load in data ----
 
 # load in abundance data
-load("data/rls_abun_modelling_data_v2.RData")
-abundance_input  = rls_abun_fitting[[i]]    # change this in all the functions
-validation_input = rls_abun_validation[[i]] # change this in all the functions
+load("data/rls_abun_modelling_data_sst.RData")
+abundance_input  = rls_abun_sst_fitting[[i]]    # change this in all the functions
+validation_input = rls_abun_sst_validation[[i]] # change this in all the functions
 print(unique(abundance_input$TAXONOMIC_NAME))
 
 # load in covariates
@@ -42,7 +42,7 @@ source('scripts/model-functions/glm_function_boot.R')
 #species_name = species_name, 
 #n_bootstrap = n_boots,
 #dataset = 'rls',
-#base_dir        = 'results/rls',
+#base_dir        = 'results/rls_sst',
 #model_path      = 'model', 
 #prediction_path = 'predictions_abunocc'
 
@@ -57,7 +57,7 @@ glm_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -73,7 +73,7 @@ glm_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -89,7 +89,7 @@ glm_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -105,7 +105,7 @@ glm_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -121,7 +121,7 @@ glm_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -137,7 +137,7 @@ glm_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -154,7 +154,7 @@ tryCatch(
                     species_name = unique(abundance_input$TAXONOMIC_NAME), 
                     n_bootstrap = n_boots,
                     dataset = 'rls',
-                    base_dir        = 'results/rls', 
+                    base_dir        = 'results/rls_sst', 
                     model_path      = 'model_abunocc', 
                     prediction_path = 'predictions_abunocc'),
   error = function(e) NA)
@@ -172,7 +172,7 @@ tryCatch(
                     species_name = unique(abundance_input$TAXONOMIC_NAME), 
                     n_bootstrap = n_boots,
                     dataset = 'rls',
-                    base_dir        = 'results/rls', 
+                    base_dir        = 'results/rls_sst', 
                     model_path      = 'model_abunocc', 
                     prediction_path = 'predictions_abunocc'), 
   error = function(e) NA)
@@ -191,7 +191,7 @@ gam_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -205,7 +205,7 @@ gam_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -219,7 +219,7 @@ gam_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -233,7 +233,7 @@ gam_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -247,7 +247,7 @@ gam_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -261,7 +261,7 @@ gam_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -277,7 +277,7 @@ source('scripts/model-functions/rf_function_boot.R')
 # species_name = species_name, 
 # n_bootstrap = n_boots,
 # dataset = 'rls',
-# base_dir        = 'results/rls',
+# base_dir        = 'results/rls_sst',
 # model_path      = 'model', 
 # prediction_path = 'predictions'
 
@@ -290,7 +290,7 @@ rf_function_boot(abundance = abundance_input,
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abunocc', 
                  prediction_path = 'predictions_abunocc')
 
@@ -303,7 +303,7 @@ rf_function_boot(abundance = abundance_input,
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abunocc', 
                  prediction_path = 'predictions_abunocc')
 
@@ -316,7 +316,7 @@ rf_function_boot(abundance = abundance_input,
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abunocc', 
                  prediction_path = 'predictions_abunocc')
 
@@ -329,7 +329,7 @@ rf_function_boot(abundance = abundance_input,
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abunocc', 
                  prediction_path = 'predictions_abunocc')
 
@@ -342,7 +342,7 @@ rf_function_boot(abundance = abundance_input,
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abunocc', 
                  prediction_path = 'predictions_abunocc')
 
@@ -363,7 +363,7 @@ source('scripts/model-functions/glm_function_boot.R')
 #species_name = species_name, 
 #n_bootstrap = n_boots,
 #dataset = 'rls',
-#base_dir        = 'results/rls',
+#base_dir        = 'results/rls_sst',
 #model_path      = 'model', 
 #prediction_path = 'predictions'
 
@@ -378,7 +378,7 @@ glm_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -394,7 +394,7 @@ glm_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -410,7 +410,7 @@ glm_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -426,7 +426,7 @@ glm_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -442,7 +442,7 @@ glm_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -459,7 +459,7 @@ gam_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -473,7 +473,7 @@ gam_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -487,7 +487,7 @@ gam_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -501,7 +501,7 @@ gam_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -515,7 +515,7 @@ gam_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -531,7 +531,7 @@ source('scripts/model-functions/rf_function_boot.R')
 # species_name = species_name, 
 # n_bootstrap = n_boots,
 # dataset = 'rls',
-# base_dir        = 'results/rls',
+# base_dir        = 'results/rls_sst',
 # model_path      = 'model', 
 # prediction_path = 'predictions'
 
@@ -544,7 +544,7 @@ rf_function_boot(abundance = abundance_input[which(abundance_input$Num!=0),],
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abun', 
                  prediction_path = 'predictions_abun')
 
@@ -557,7 +557,7 @@ rf_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abun', 
                  prediction_path = 'predictions_abun')
 
@@ -570,7 +570,7 @@ rf_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abun', 
                  prediction_path = 'predictions_abun')
 
@@ -583,7 +583,7 @@ rf_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abun', 
                  prediction_path = 'predictions_abun')
 
@@ -596,7 +596,7 @@ rf_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abun', 
                  prediction_path = 'predictions_abun')
 
@@ -632,7 +632,7 @@ source('scripts/model-functions/glm_function_boot.R')
 #species_name = species_name, 
 #n_bootstrap = n_boots,
 #dataset = 'rls',
-#base_dir        = 'results/rls',
+#base_dir        = 'results/rls_sst',
 #model_path      = 'model', 
 #prediction_path = 'predictions_abunocc'
 
@@ -647,7 +647,7 @@ glm_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -663,7 +663,7 @@ glm_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -679,7 +679,7 @@ glm_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -695,7 +695,7 @@ glm_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -711,7 +711,7 @@ glm_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -727,7 +727,7 @@ glm_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls', 
+                  base_dir        = 'results/rls_sst', 
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -744,7 +744,7 @@ tryCatch(
                     species_name = unique(abundance_input$TAXONOMIC_NAME), 
                     n_bootstrap = n_boots,
                     dataset = 'rls',
-                    base_dir        = 'results/rls', 
+                    base_dir        = 'results/rls_sst', 
                     model_path      = 'model_abunocc_2stage', 
                     prediction_path = 'predictions_abunocc_2stage'),
   error = function(e) NA)
@@ -762,7 +762,7 @@ tryCatch(
                     species_name = unique(abundance_input$TAXONOMIC_NAME), 
                     n_bootstrap = n_boots,
                     dataset = 'rls',
-                    base_dir        = 'results/rls', 
+                    base_dir        = 'results/rls_sst', 
                     model_path      = 'model_abunocc_2stage', 
                     prediction_path = 'predictions_abunocc_2stage'), 
   error = function(e) NA)
@@ -781,7 +781,7 @@ gam_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -795,7 +795,7 @@ gam_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -809,7 +809,7 @@ gam_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -823,7 +823,7 @@ gam_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -837,7 +837,7 @@ gam_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -851,7 +851,7 @@ gam_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -867,7 +867,7 @@ source('scripts/model-functions/rf_function_boot.R')
 # species_name = species_name, 
 # n_bootstrap = n_boots,
 # dataset = 'rls',
-# base_dir        = 'results/rls',
+# base_dir        = 'results/rls_sst',
 # model_path      = 'model', 
 # prediction_path = 'predictions'
 
@@ -880,7 +880,7 @@ rf_function_boot(abundance = abundance_input,
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abunocc_2stage', 
                  prediction_path = 'predictions_abunocc_2stage')
 
@@ -893,7 +893,7 @@ rf_function_boot(abundance = abundance_input,
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abunocc_2stage', 
                  prediction_path = 'predictions_abunocc_2stage')
 
@@ -906,7 +906,7 @@ rf_function_boot(abundance = abundance_input,
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abunocc_2stage', 
                  prediction_path = 'predictions_abunocc_2stage')
 
@@ -919,7 +919,7 @@ rf_function_boot(abundance = abundance_input,
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abunocc_2stage', 
                  prediction_path = 'predictions_abunocc_2stage')
 
@@ -932,7 +932,7 @@ rf_function_boot(abundance = abundance_input,
                  species_name = unique(abundance_input$TAXONOMIC_NAME), 
                  n_bootstrap = n_boots,
                  dataset = 'rls',
-                 base_dir        = 'results/rls',
+                 base_dir        = 'results/rls_sst',
                  model_path      = 'model_abunocc_2stage', 
                  prediction_path = 'predictions_abunocc_2stage')
 
@@ -955,7 +955,7 @@ brt_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -969,7 +969,7 @@ brt_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -983,7 +983,7 @@ brt_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -997,7 +997,7 @@ brt_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -1011,7 +1011,7 @@ brt_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc', 
                   prediction_path = 'predictions_abunocc')
 
@@ -1034,7 +1034,7 @@ brt_function_boot(abundance = abundance_input[which(abundance_input$Num!=0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -1048,7 +1048,7 @@ brt_function_boot(abundance = abundance_input[which(abundance_input$Num!=0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -1062,7 +1062,7 @@ brt_function_boot(abundance = abundance_input[which(abundance_input$Num!=0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -1076,7 +1076,7 @@ brt_function_boot(abundance = abundance_input[which(abundance_input$Num!=0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -1090,7 +1090,7 @@ brt_function_boot(abundance = abundance_input[which(abundance_input$Num!=0),],
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abun', 
                   prediction_path = 'predictions_abun')
 
@@ -1110,7 +1110,7 @@ brt_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -1124,7 +1124,7 @@ brt_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -1138,7 +1138,7 @@ brt_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -1152,7 +1152,7 @@ brt_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
@@ -1166,7 +1166,7 @@ brt_function_boot(abundance = abundance_input,
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
-                  base_dir        = 'results/rls',
+                  base_dir        = 'results/rls_sst',
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
 
