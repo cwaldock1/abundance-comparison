@@ -239,11 +239,13 @@ glm_function_boot <- function(abundance = abundance,
     
     # make validations
     # predict data using verification
-    verification_predict[[boot]]  <- predict(model_fit[[boot]]@model, data.frame(abundance_boot[[boot]]), type = 'response')
+    if(zi != T){verification_predict[[boot]]  <- predict(model_fit[[boot]]@model, data.frame(abundance_boot[[boot]]), type = 'response')}
+    if(zi == T){verification_predict[[boot]]  <- predict(model_fit[[boot]], data.frame(abundance_boot[[boot]]), type = 'response')}
     verification_observed[[boot]] <- abundance_boot[[boot]]$abundance
       
     # predict data using validation
-    validation_predict[[boot]]  <- predict(model_fit[[boot]]@model, data.frame(validation), type = 'response')
+    if(zi != T){validation_predict[[boot]]  <- predict(model_fit[[boot]]@model, data.frame(validation), type = 'response')}
+    if(zi == T){validation_predict[[boot]]  <- predict(model_fit[[boot]], data.frame(validation), type = 'response')}
     validation_observed[[boot]] <- validation$abundance
     
     # convert all values back to raw abundances
