@@ -86,7 +86,7 @@ rls_sum <- rls_raw %>%
   rename(Num = Num_sum, Biomass = Biomass_sum) %>% 
   unique() %>% 
 
-  # average abundance and biomass over surveys
+  # average abundance and biomass over surveys i.e., gets rid of yearly variation
   group_by(SiteCode, SiteLatitude, SiteLongitude, TAXONOMIC_NAME) %>% 
   nest() %>% 
   mutate(Num_mean = purrr::map(data, ~round(mean(.$Num, na.rm = T))), 
@@ -207,7 +207,10 @@ rls_sum_absences <- lapply(1:length(unique(rls_site_abun$TAXONOMIC_NAME)), FUN =
   
                            get_buffered_absences(presences = rls_site_abun %>% 
                                                    filter(TAXONOMIC_NAME == unique(rls_site_abun$TAXONOMIC_NAME)[x]), 
-                                                 sites = rls_sites)
+                                                 sites = rls_sites, 
+                                                 x_name = 'SiteLongitude',
+                                                 y_name = 'SiteLatitude',
+                                                 sp_name = 'TAXONOMIC_NAME')
                            
                            })
 
@@ -238,7 +241,7 @@ rls_model_data <- lapply(rls_sum_absences, function(x){
   validation$set <- 'validation'
   
   list_outputs <- list(list(fitting = fitting, validation = validation))
-  names(list_outputs) <- unique(rls_sum_absences[[1]]$TAXONOMIC_NAME)
+  names(list_outputs) <- unique(rls_sum_absences[[x]]$TAXONOMIC_NAME)
   
   return(list_outputs)
   
@@ -297,6 +300,4 @@ left_join(rls_abun, abundance_key) %>%
      sd_ac   = sd(.$mean_obs)) %>% 
   unnest() %>% data.frame 
   
-
-
 
