@@ -1,21 +1,24 @@
 
 # Function for fitting random forest abundance models 
 
-#load("data/rls_abun_modelling_data_v2.RData")
-#abundance = rls_abun_fitting[[2]]
+# load in abundance data
+# load("data/rls_abun_modelling_data.RData")
+# abundance = rls_abun_fitting
 
 # load in covariates
-#load("data/rls_covariates.RData")
-covariates = rls_xy[c('SiteLongitude', 'SiteLatitude',
-                      'Depth_GEBCO_transformed', 
-                      "human_pop_2015_50km", "reef_area_200km", "wave_energy_mean", "Depth_GEBCO_transformed",
-                      'robPCA_1', 'robPCA_2', 'robPCA_3', 'robPCA_4', 'robPCA_5', 'robPCA_6')]
+# load("data/rls_covariates.RData")
+# covariates = rls_xy[c('SiteCode', 'SiteLongitude', 'SiteLatitude',
+#                      'Depth_GEBCO', 
+#                      'robPCA_1', 'robPCA_2', 'robPCA_3', 'robPCA_4', 'robPCA_5', 'robPCA_6')]
+# covariates[,4] <- as.numeric(scale(log(abs(covariates[,4])), center = T))
+# get species names
+# species_name <- as.character(names(abundance)[4])
 
 # discrete
 # discrete <- T
 
 # transformation
-#transformation = 'log'
+# transformation = 'log'
 
 rf_function <- function(abundance = abundance, 
                          covariates = covariates, 
@@ -28,8 +31,8 @@ rf_function <- function(abundance = abundance,
   require(randomForest)
   
   # filter to focal species
-  abundance <- abundance[c('SiteLongitude', 'SiteLatitude', 'Num')]
-  names(abundance)[3] <- 'abundance'
+  abundance <- abundance[c('SiteCode', 'SiteLongitude', 'SiteLatitude', species_name)]
+  names(abundance)[4] <- 'abundance'
   
   # join together abundance and covariates dataframes 
   abundance <- left_join(abundance, covariates)
@@ -52,8 +55,8 @@ rf_function <- function(abundance = abundance,
   # rename and get general names for covariates for generalism
   covNames_org <- names(covariates)
   covNames_org <- covNames_org[-which(covNames_org %in% c('SiteCode', 'SiteLongitude', 'SiteLatitude'))]
-  for(i in 1:length(covNames_org)){names(abundance)[3+i] <- paste0('cov', i)}
-  for(i in 1:length(covNames_org)){names(covariates)[2+i] <- paste0('cov', i)}
+  for(i in 1:length(covNames_org)){names(abundance)[4+i] <- paste0('cov', i)}
+  for(i in 1:length(covNames_org)){names(covariates)[3+i] <- paste0('cov', i)}
   covNames_new <- names(covariates) # randomForests take matrix which can be subset with this object 
   covNames_new <- covNames_new[-which(covNames_new %in% c('SiteCode', 'SiteLongitude', 'SiteLatitude'))]
   

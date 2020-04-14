@@ -3,46 +3,19 @@
 # buildmer for model fitting and stepwise model selection of glmmTMB
 # remotes::install_github("cvoeten/buildmer"); https://github.com/cvoeten/buildmer
 
-#load("data/rls_abun_modelling_data_v2.RData")
-#abundance = rls_abun_fitting[[1]]
-
-# load in covariates
-#load("data/rls_covariates.RData")
-#covariates = rls_xy[c('SiteLongitude', 'SiteLatitude',
-#                      'Depth_GEBCO', 
-#                      'robPCA_1', 'robPCA_2', 'robPCA_3', 'robPCA_4', 'robPCA_5', 'robPCA_6')]
-
-# get species names
-#species_name <- unique(abundance$TAXONOMIC_NAME)
-
-# write model
-#model = 'gam'
-
-# transformation
-#transformation = NA
-
-# family
-#family = 'poisson'
-# family = 'tweedie'
-
-# load verification and validation data
-# verification     = rls_abun_fitting[[1]][,c(2,3,5)] # this isn't needed as the verification is simply the data put into the model
-#validation         = rls_abun_validation[[1]]
-
-
 # function to fit glms
 gam_function_boot <- function(abundance = abundance, 
                               validation = validation,
                               covariates = covariates, 
-                         transformation = NA, # option is NA, log, log10
-                         model = NA, # option is gam
-                         family = NA, # option is NA, poisson, or nbinom, tweedie or zip
-                         species_name = species_name, 
-                         n_bootstrap = 10,
-                         dataset = 'rls',
-                         base_dir        = 'results/rls',
-                         model_path      = 'model', 
-                         prediction_path = 'predictions'){
+                              transformation = NA, # option is NA, log, log10
+                              model = NA, # option is gam
+                              family = NA, # option is NA, poisson, or nbinom, tweedie or zip
+                              species_name = species_name, 
+                              n_bootstrap = 10,
+                              dataset = 'rls',
+                              base_dir        = 'results/rls',
+                              model_path      = 'model', 
+                              prediction_path = 'predictions'){
   
   require(tidyverse)
   require(mgcv)
@@ -108,6 +81,7 @@ gam_function_boot <- function(abundance = abundance,
   validation_predict    <- list() # bootstrapped predictions from validation data 
   
   # for loop to create the bootstraps and fit the models 
+  n_bootstrap <- ifelse(sum(abundance$abundance %in% 0) > 0, n_bootstrap, 1)
   for(boot in 1:n_bootstrap){
     print(boot)
     # CREATE BOOTSTRAPED DATA
@@ -122,43 +96,92 @@ gam_function_boot <- function(abundance = abundance,
     
     # get absence 
     set.seed(seed_123[[boot]])
-    boot_absence <- abundance[sample(which(abundance$abundance == 0), n_subsample, replace = F),]
-
+    if(sum(abundance$abundance %in% 0) > 0){boot_absence <- abundance[sample(which(abundance$abundance == 0), n_subsample, replace = F),]}else{boot_absence <- NULL}
+    
     # combine absence and presence
     abundance_boot[[boot]] <- rbind(abundance_only, boot_absence) # this also acts as the verification of the model
     
-  
-
     # FIT THE MODELS
-
+    #plot(gam(abundance ~ s(cov3, k = 3) + s(cov1, k = 3) + s(cov10, k = 3), data = abundance_boot[[boot]], family = gaussian, method = 'ML'))
+    
+    # test indiviual terms fail
+    fail_cov <- !is.na(lapply(1:(length(abundance_boot[[boot]])-3), 
+                              function(x) 
+                                tryCatch(
+                                  
+                                  if(is.na(family)){
+                                    gam(abundance ~ s(cov, k = 3),
+                                             data = data.frame(abundance = abundance_boot[[boot]]$abundance,
+                                                               cov = data.frame(abundance_boot[[boot]])[,x+3]), family = gaussian, method = 'ML')}else{
+                                  if(family == 'poisson'){
+                                    gam(abundance ~ s(cov, k = 3),
+                                      data = data.frame(abundance = abundance_boot[[boot]]$abundance,
+                                                        cov = data.frame(abundance_boot[[boot]])[,x+3]), family = poisson, method = 'ML')
+                                    }
+                                  if(family == 'nbinom'){
+                                  gam(abundance ~ s(cov, k = 3),
+                                      data = data.frame(abundance = abundance_boot[[boot]]$abundance,
+                                                        cov = data.frame(abundance_boot[[boot]])[,x+3]), family = nb, method = 'ML')
+                                    }
+                                  if(family == 'tweedie'){
+                                  gam(abundance ~ s(cov, k = 3),
+                                      data = data.frame(abundance = abundance_boot[[boot]]$abundance,
+                                                        cov = data.frame(abundance_boot[[boot]])[,x+3]), family = tw, method = 'ML')
+                                    }
+                                  if(family == 'zip'){
+                                  gam(abundance ~ s(cov, k = 3),
+                                      data = data.frame(abundance = abundance_boot[[boot]]$abundance,
+                                                        cov = data.frame(abundance_boot[[boot]])[,x+3]), family = ziP, method = 'ML')
+                                    }},
+                                  error = function(e) NA)))
+    
+    # if model with covariates doesn't converge
+    covNames_combined_modified <- paste0(covNames_splines[fail_cov], collapse = '+')
+    if(covNames_combined_modified == ""){
+      #verification_observed[[boot]] <- NA
+      #validation_observed[[boot]]   <- NA
+      #verification_predict[[boot]]  <- NA
+      #validation_predict[[boot]]    <- NA
+      next}
+    model_formula_modified <- as.formula(paste0(response, covNames_combined_modified))
+    
     # gaussian with log and log10 transformations
-    if(is.na(family)){
-        model_fit[[boot]] <- gam(model_formula,data=abundance_boot[[boot]],family=gaussian,select=TRUE, method = 'ML')
-      }else{
+    if(1 == length(tryCatch(
+    
+      if(is.na(family)){
+      
+        model_fit[[boot]] <- gam(model_formula_modified, data=abundance_boot[[boot]], family=gaussian, select=TRUE, method = 'ML')
+
+        }else{
 
         # poisson
         if(family == 'poisson'){
-            model_fit[[boot]] <- gam(model_formula,data=abundance_boot[[boot]],family=poisson,select=TRUE, method = 'ML')
+            model_fit[[boot]] <- gam(model_formula_modified,data=abundance_boot[[boot]],family=poisson,select=TRUE, method = 'ML')
           }
-  
+          
         # nbinom
         if(family == 'nbinom'){
-            model_fit[[boot]] <- gam(model_formula,data=abundance_boot[[boot]],family=nb,select=TRUE, method = 'ML')
+            model_fit[[boot]] <- gam(model_formula_modified,data=abundance_boot[[boot]],family=nb,select=TRUE, method = 'ML')
           }
-  
+
         # tweedie
         if(family == 'tweedie'){
-            model_fit[[boot]] <- gam(model_formula,data=abundance_boot[[boot]],family=tw,select=TRUE, method = 'ML')
+            model_fit[[boot]] <- gam(model_formula_modified,data=abundance_boot[[boot]],family=tw,select=TRUE, method = 'ML')
           }
-  
+          
         # zip
         if(family == 'zip'){
-             model_fit[[boot]] <- gam(model_formula,data=abundance_boot[[boot]],family=ziP,select=TRUE, method = 'ML')
+          # add trycatch here because this function is error-prone
+             model_fit[[boot]] <- gam(model_formula_modified,data=abundance_boot[[boot]],family=ziP,select=TRUE, method = 'ML')
         }
-        }# end of else statement
+        }, 
+    
+    error = function(e) 'model fit unsuccessful'))){model_fit[[boot]] <- NA}
+    
 
     if(!family %in% c(NA, 'poisson', 'nbinom', 'tweedie', 'zip')){stop('family must be one of: NA, poisson, nbinom, tweedie, zip')}
 
+    if(is.na(model_fit[boot])){next}
     
     # MAKE PREDICTIONS
     # predict data using verification
@@ -182,22 +205,31 @@ gam_function_boot <- function(abundance = abundance,
         verification_predict[[boot]]  <- exp(verification_predict[[boot]])-1
         validation_predict[[boot]]    <- exp(validation_predict[[boot]])-1
       }
-    }# end of else statement
     
+    }# end of else statement
     
   } # end of bootstrapped for loop
     
+  # clean up error handling
+  model_fit <- model_fit[!is.na(model_fit)]
+  model_fit <- model_fit[!sapply(model_fit, is.null)]
+  verification_observed <- verification_observed[!sapply(verification_observed, is.null)]
+  validation_observed   <- validation_observed[!sapply(validation_observed, is.null)]
+  verification_predict  <- verification_predict[!sapply(verification_predict, is.null)]
+  validation_predict    <- validation_predict[!sapply(validation_predict, is.null)]
   
   # create prediction object
   extracted_predictions <- tibble(dataset = dataset, 
                                   species_name = species_name, 
+                                  
                                   fitted_model = 'gam', 
+                                  only_abundance = if(sum(abundance$abundance %in% 0) > 0){F}else{T},
                                   family  = family, 
                                   transformation = transformation, 
                                   zi = ifelse(family == 'zip', T, F),
                                   n_abundance = nrow(abundance_only), 
-                                  n_absence   = nrow(abundance[which(abundance$abundance == 0),]),
-                                  n_boot_absence = nrow(boot_absence), 
+                                  n_absence   = if(sum(abundance$abundance %in% 0) > 0){nrow(abundance[which(abundance$abundance == 0),])}else{0},
+                                  n_boot_absence = if(sum(abundance$abundance %in% 0) > 0){nrow(boot_absence)}else{0}, 
                                   
                                   # estimate mean predictions
                                   verification_observed_mean = list(apply(simplify2array(verification_observed), 1, mean)),# list(verification_observed), 
@@ -213,7 +245,10 @@ gam_function_boot <- function(abundance = abundance,
                                   
                                   # the amount of variation caused by bootstrapping to random 0s
                                   sd_verification = mean(apply(simplify2array(verification_predict), 1, sd)), 
-                                  sd_validation   = mean(apply(simplify2array(validation_predict), 1, sd)))
+                                  sd_validation   = mean(apply(simplify2array(validation_predict), 1, sd)), 
+                                  
+                                  verification_locations = list(data.frame(SiteLongitude = abundance$SiteLongitude, SiteLatitude = abundance$SiteLatitude)), 
+                                  validation_locations = list(data.frame(SiteLongitude = validation$SiteLongitude, SiteLatitude = validation$SiteLatitude)))
   
   
   # save output into appropriate folder system
@@ -236,8 +271,7 @@ gam_function_boot <- function(abundance = abundance,
   save(extracted_predictions, 
        file = paste0(prediction_final_path, '/', model_dir, '_', gsub(' ', '_', species_name), '.RData'), 
        recursive = T)
-  
-  
+
 }
 
 

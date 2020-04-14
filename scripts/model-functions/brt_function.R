@@ -1,12 +1,12 @@
 # Function for fitting boosted regression tree abundance models 
 
 # load in abundance data
-#load("data/rls_abun_modelling_data_v2.RData")
-#abundance = rls_abun_fitting[[1]]
+#load("data/rls_abun_modelling_data.RData")
+#abundance = rls_abun_fitting
 
 # load in covariates
 #load("data/rls_covariates.RData")
-#covariates = rls_xy[c('SiteLongitude', 'SiteLatitude',
+#covariates = rls_xy[c('SiteCode', 'SiteLongitude', 'SiteLatitude',
 #                      'Depth_GEBCO', 
 #                      'robPCA_1', 'robPCA_2', 'robPCA_3', 'robPCA_4', 'robPCA_5', 'robPCA_6')]
 #covariates[,4] <- as.numeric(scale(log(abs(covariates[,4])), center = T))
@@ -34,13 +34,15 @@ brt_function <- function(abundance = abundance,
   require('h2o')
   #h2o.init(port = sample(c(1:10000), 1))
   # this makes sure that a port is opened
-  while(is.logical(tryCatch(h2o.clusterInfo(), error = function(e)NA))){
+  times <- 1
+  while(is.logical(tryCatch(h2o.clusterInfo(), error = function(e)NA)) | times < 10){
     tryCatch(h2o.init(port = sample(c(1:10000), 1)), error = function(e) NA)
+    times <- times+1
              }
   
   # filter to focal species
-  abundance <- abundance[c('SiteLongitude', 'SiteLatitude', 'Num')]
-  names(abundance)[3] <- 'abundance'
+  abundance <- abundance[c('SiteCode', 'SiteLongitude', 'SiteLatitude', species_name)]
+  names(abundance)[4] <- 'abundance'
   
   # join together abundance and covariates dataframes 
   abundance <- left_join(abundance, covariates)
@@ -63,8 +65,8 @@ brt_function <- function(abundance = abundance,
   # rename and get general names for covariates for generalism
   covNames_org <- names(covariates)
   covNames_org <- covNames_org[-which(covNames_org %in% c('SiteCode', 'SiteLongitude', 'SiteLatitude'))]
-  for(i in 1:length(covNames_org)){names(abundance)[3+i] <- paste0('cov', i)}
-  for(i in 1:length(covNames_org)){names(covariates)[2+i] <- paste0('cov', i)}
+  for(i in 1:length(covNames_org)){names(abundance)[4+i] <- paste0('cov', i)}
+  for(i in 1:length(covNames_org)){names(covariates)[3+i] <- paste0('cov', i)}
   covNames_new <- names(covariates) # brt forumla made with this object 
   covNames_new <- covNames_new[-which(covNames_new %in% c('SiteCode', 'SiteLongitude', 'SiteLatitude'))]
   
@@ -101,7 +103,7 @@ brt_function <- function(abundance = abundance,
   # create feature names
   y <- "abundance"
   x <- covNames_new
-  train.h2o <- as.h2o(abundance[,-c(1:2)])
+  train.h2o <- as.h2o(abundance[,-c(1:3)])
  
   # set up a hypergrid
   hyper_grid <- list(

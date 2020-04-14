@@ -3,14 +3,19 @@
 # buildmer for model fitting and stepwise model selection of glmmTMB
 # remotes::install_github("cvoeten/buildmer"); https://github.com/cvoeten/buildmer
 
-#load("data/rls_abun_modelling_data_v2.RData")
-#abundance = rls_abun_fitting[[1]]
+# load in abundance data
+#load("data/rls_abun_modelling_data.RData")
+#abundance = rls_abun_fitting
 
 # load in covariates
 #load("data/rls_covariates.RData")
-#covariates = rls_xy[c('SiteLongitude', 'SiteLatitude',
+#covariates = rls_xy[c('SiteCode', 'SiteLongitude', 'SiteLatitude',
 #                      'Depth_GEBCO', 
 #                      'robPCA_1', 'robPCA_2', 'robPCA_3', 'robPCA_4', 'robPCA_5', 'robPCA_6')]
+#rls_xy = rls_xy[c('SiteCode', 'SiteLongitude', 'SiteLatitude',
+#                   'Depth_GEBCO', 
+#                   'robPCA_1', 'robPCA_2', 'robPCA_3', 
+#                   'robPCA_4', 'robPCA_5', 'robPCA_6')]
 
 # get species names
 # species_name <- as.character(names(abundance)[11])
@@ -40,8 +45,8 @@ gam_function <- function(abundance = abundance,
   if(!is.na(transformation) & !is.na(family)){stop('dont be naughty, you shouldnt fit transformations and error structures')}
   
   # filter to focal species
-  abundance <- abundance[c('SiteLongitude', 'SiteLatitude', 'Num')]
-  names(abundance)[3] <- 'abundance'
+  abundance <- abundance[c('SiteCode', 'SiteLongitude', 'SiteLatitude', species_name)]
+  names(abundance)[4] <- 'abundance'
   
   # join together abundance and covariates dataframes 
   abundance <- left_join(abundance, covariates)
@@ -60,8 +65,8 @@ gam_function <- function(abundance = abundance,
   # rename covariates
   covNames_org <- names(covariates)
   covNames_org <- covNames_org[-which(covNames_org %in% c('SiteCode', 'SiteLongitude', 'SiteLatitude'))]
-  for(i in 1:length(covNames_org)){names(abundance)[3+i] <- paste0('cov', i)}
-  for(i in 1:length(covNames_org)){names(covariates)[2+i] <- paste0('cov', i)}
+  for(i in 1:length(covNames_org)){names(abundance)[4+i] <- paste0('cov', i)}
+  for(i in 1:length(covNames_org)){names(covariates)[3+i] <- paste0('cov', i)}
   
   # create formula with new covariate names
   covNames_new <- names(covariates)

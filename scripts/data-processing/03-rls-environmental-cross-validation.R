@@ -30,16 +30,16 @@ rls_abun_sst_2 <- lapply(1:length(unique(rls_abun_sst$TAXONOMIC_NAME)), function
   all_absences  <- species_data %>% filter(Num == 0)  # absences
   all_presences <- species_data %>% filter(Num != 0)  # presences
   
-  sample_size <- round(round(nrow(species_data)*0.8) / 2)
+  sample_size <- round(round(nrow(species_data)*0.8) / 2) # get sample size for cross validations
   
   # estimate 80th quantile in absences and presences
   absences_sst_quantile <- as.numeric(quantile(all_absences$sst.mean, 0.8, na.rm = T))
   presences_sst_quantile <- as.numeric(quantile(all_presences$sst.mean, 0.8, na.rm = T))
   
   absences_sample_fitting    <- all_absences[ -which(all_absences$sst.mean  > absences_sst_quantile),]
-  presence_sample_fitting    <- all_presences[-which(all_presences$sst.mean > absences_sst_quantile),]
+  presence_sample_fitting    <- all_presences[-which(all_presences$sst.mean > presences_sst_quantile),]
   absences_sample_validation <- all_absences[ which(all_absences$sst.mean  > absences_sst_quantile),]
-  presence_sample_validation <- all_presences[which(all_presences$sst.mean > absences_sst_quantile),]
+  presence_sample_validation <- all_presences[which(all_presences$sst.mean > presences_sst_quantile),]
   
   fitting    <- rbind(absences_sample_fitting, presence_sample_fitting)
   validation <- rbind(absences_sample_validation, presence_sample_validation)
@@ -53,7 +53,6 @@ rls_abun_sst_2 <- lapply(1:length(unique(rls_abun_sst$TAXONOMIC_NAME)), function
   return(list_outputs)
   
   }) # end of lapply
-
 
 # create outputs to save - this is the random validation
 rls_abun_sst_fitting    <- lapply(rls_abun_sst_2, function(x) x[[1]][[1]])

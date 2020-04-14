@@ -97,6 +97,9 @@ rls_sum <- rls_raw %>%
   rename(Num = Num_mean, Biomass = Biomass_mean) %>% 
   unique()
 
+# calculate number of species available for analysis 
+length(unique(rls_sum$TAXONOMIC_NAME))
+
 # filter to ensure all species have 50 presences per species 
 species_50 <- rls_sum %>% 
   filter(Num > 0) %>% 
@@ -268,3 +271,32 @@ save(rls_abun, # whole data object as datafrane
      rls_abun_fitting, # listed fitting data
      rls_abun_validation, # list validation data
      abundance_key, file = 'data/rls_abun_modelling_data_v2.RData')
+
+# summarise for table ----
+abundance_key %>% 
+  group_by(abundance_class) %>% 
+  do(mean_frequency = mean(.$frequency),
+            sd_frequency   = sd(.$frequency), 
+            mean_abundance = mean(.$mean_abundance),
+            sd_abundance   = sd(.$mean_abundance)) %>% 
+  unnest()
+
+left_join(rls_abun, abundance_key) %>% 
+  group_by(TAXONOMIC_NAME) %>% 
+  do(mean_obs = length(unique(paste(.$SiteLatitude, .$SiteLongitude, .$SiteCode)))) %>% 
+  unnest() %>% 
+  .$mean_obs %>% mean
+
+left_join(rls_abun, abundance_key) %>% 
+  group_by(TAXONOMIC_NAME) %>% 
+  nest() %>% 
+  mutate(mean_obs = purrr::map(data, ~length(unique(paste(.$SiteLatitude, .$SiteLongitude, .$SiteCode))))) %>% 
+  unnest() %>% 
+  group_by(abundance_class) %>% 
+  do(mean_ac = mean(.$mean_obs), 
+     sd_ac   = sd(.$mean_obs)) %>% 
+  unnest() %>% data.frame 
+  
+
+
+
