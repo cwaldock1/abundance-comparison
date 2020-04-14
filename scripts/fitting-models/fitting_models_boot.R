@@ -20,7 +20,7 @@ print(unique(abundance_input$TAXONOMIC_NAME))
 load("data/rls_covariates.RData")
 covariates = rls_xy[c('SiteLongitude', 'SiteLatitude',
                       "human_pop_2015_50km", "reef_area_200km", "wave_energy_mean", "Depth_GEBCO_transformed",
-                      'robPCA_1', 'robPCA_2', 'robPCA_3', 'robPCA_4', 'robPCA_5', 'robPCA_6')]
+                      'robPCA_1', 'robPCA_2', 'robPCA_3', 'robPCA_4', 'robPCA_5')]
 
 # setup number of bootstraps 
 n_boots = 10
@@ -606,9 +606,6 @@ rf_function_boot(abundance = abundance_input[which(abundance_input$Num != 0),],
 # run occurrence models - two stage ---- 
 source('scripts/model-functions/occupancy_ensemble.R')
 
-# I THINK THIS IS A CIRCULARITY!!!
-# occurrence_input  = do.call(rbind, rls_abun_list[[i]][[1]])    # change this in all the functions
-
 suitability <- occupancy_ensemble(abundance = abundance_input,
                                   validation = validation_input,
                                   covariates = covariates,
@@ -618,7 +615,7 @@ suitability <- occupancy_ensemble(abundance = abundance_input,
 dir.create('results/rls/suitability', recursive = T)
 save(suitability, file = paste0('results/rls/suitability', '/', unique(abundance_input$TAXONOMIC_NAME), '.RData'))
 
-# run glm options - two stage ----
+## run glm options - two stage ----
 source('scripts/model-functions/glm_function_boot.R')
 
 # list of potential function arguments
@@ -938,11 +935,10 @@ rf_function_boot(abundance = abundance_input,
 
 
 
-# RUNNING BOOSTED REGRESSION TREES AT END BECUASE ERROR PRONE ---- 
+# RUNNING BOOSTED REGRESSION TREES AT END  ---- 
 # run boosted regression trees options - ABUNDANCE_OCCURRENCE ----
-# stop('boosted regression trees not implemented on server')
+
 # source function
-#source('scripts/model-functions/brt_function_boot.R')
 source('scripts/model-functions/brt_function_boot_noJava.R')
 
 # brt, raw, continuous
@@ -1016,12 +1012,9 @@ brt_function_boot(abundance = abundance_input,
                   prediction_path = 'predictions_abunocc')
 
 
-
-
 # run boosted regression trees options - ABUNDANCE_ONLY ----
-# stop('boosted regression trees not implemented on server')
+
 # source function
-#source('scripts/model-functions/brt_function_boot.R')
 source('scripts/model-functions/brt_function_boot_noJava.R')
 
 # brt, raw, continuous
@@ -1095,9 +1088,8 @@ brt_function_boot(abundance = abundance_input[which(abundance_input$Num!=0),],
                   prediction_path = 'predictions_abun')
 
 # run boosted regression trees options - two stage ----
-# stop('boosted regression trees not implemented on server')
+
 # source function
-#source('scripts/model-functions/brt_function_boot.R')
 source('scripts/model-functions/brt_function_boot_noJava.R')
 
 # brt, raw, continuous
@@ -1134,7 +1126,7 @@ brt_function_boot(abundance = abundance_input,
                   covariates = suitability,
                   transformation = 'log', # option is NA, log, log10
                   discrete = T,       # option is T or F 
-                  family = 'poisson', # cannot have mulitinomial for the single variate models fitted with gbm
+                  family = 'multinomial', # cannot have mulitinomial for the single variate models fitted with gbm
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
@@ -1162,11 +1154,14 @@ brt_function_boot(abundance = abundance_input,
                   covariates = suitability,
                   transformation = 'log10', # option is NA, log, log10
                   discrete = T,       # option is T or F 
-                  family = 'poisson',
+                  family = 'multinomial',
                   species_name = unique(abundance_input$TAXONOMIC_NAME), 
                   n_bootstrap = n_boots,
                   dataset = 'rls',
                   base_dir        = 'results/rls',
                   model_path      = 'model_abunocc_2stage', 
                   prediction_path = 'predictions_abunocc_2stage')
+
+stop()
+
 
