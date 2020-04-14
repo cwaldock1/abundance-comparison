@@ -1,31 +1,6 @@
 
 # Function for fitting random forest abundance models 
 
-# load in abundance data
-#load("data/rls_abun_modelling_data_v2.RData")
-#abundance = rls_abun_fitting[[i]]
-
-# if for abundance only 
-#abundance = abundance[which(abundance$Num!=0),]
-
-# load validation set
-#validation = rls_abun_validation[[i]]
-
-# load in covariates
-#load("data/rls_covariates.RData")
-#covariates = rls_xy[c('SiteLongitude', 'SiteLatitude',
-#                      'Depth_GEBCO', 
-#                      'robPCA_1', 'robPCA_2', 'robPCA_3', 'robPCA_4', 'robPCA_5', 'robPCA_6')]
-
-# discrete
-#discrete <- T
-
-# get species names
-#species_name <- unique(abundance$TAXONOMIC_NAME)
-
-# transformation
-#transformation = 'log10'
-
 rf_function_boot <- function(abundance = abundance, 
                              validation = validation,
                              covariates = covariates, 

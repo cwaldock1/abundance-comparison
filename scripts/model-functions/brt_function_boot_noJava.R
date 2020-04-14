@@ -1,33 +1,5 @@
 # Function for fitting boosted regression tree abundance models 
 
-# load in abundance data
-#load("data/rls_abun_modelling_data_v2.RData")
-#abundance = rls_abun_fitting[[i]]
-
-# load validation set
-#validation = rls_abun_validation[[i]]
-
-# if for abundance only
-#abundance = abundance[which(abundance$Num!=0),]
-
-# load in covariates
-#load("data/rls_covariates.RData")
-#covariates = rls_xy[c('SiteLongitude', 'SiteLatitude',
-#                      'Depth_GEBCO', 
-#                      'robPCA_1', 'robPCA_2', 'robPCA_3', 'robPCA_4', 'robPCA_5', 'robPCA_6')]
-
-# get species names
-#species_name <- unique(abundance$TAXONOMIC_NAME)
-
-# discrete
-#discrete <- T
-
-# transformation
-#transformation = 'log'
-
-# family
-#family = 'multinomial'
-
 brt_function_boot <- function(abundance = abundance, 
                          validation = validation,
                          covariates = covariates, 
@@ -141,19 +113,22 @@ brt_function_boot <- function(abundance = abundance,
     
     ### FITTING BOOSTED REGRESSION TREES
 
+    # boosted regression tree modelling in 'gbm'
     if(length(covNames_new) != 1){
     # fit models with gbm packages
     # fit boosted regression tree with stochastic gradient boosting (i.e., bag.fraction != 1)
-    model_fit[[boot]] <- gbm(formula = brt_formula,
-                     data = abundance_boot[[boot]], 
-                     distribution = family, 
-                     n.trees = 10000,
-                     interaction.depth = 3, 
-                     shrinkage = 0.001,
-                     bag.fraction = 0.75, 
-                     cv.folds = 10, 
-                     n.cores = n.cores)
-    
+    model_fit[[boot]] <- tryCatch(gbm(formula = brt_formula,
+                                      data = abundance_boot[[boot]], 
+                                      distribution = family, 
+                                      n.trees = 10000,
+                                      interaction.depth = 3, 
+                                      shrinkage = 0.001,
+                                      bag.fraction = 0.8, 
+                                      cv.folds = 10, 
+                                      n.cores = n.cores), error = function(e) NA)
+     
+    if(!is.na(model_fit[[boot]])){
+      
     # selecting the best number of trees from cross validations
     gbm.mod.perf <- gbm.perf(model_fit[[boot]], method = "cv", plot.it = F) 
     
@@ -162,58 +137,103 @@ brt_function_boot <- function(abundance = abundance,
                              data = abundance_boot[[boot]], 
                              distribution = family, 
                              n.trees = gbm.mod.perf,
+                             bag.fraction = 0.8,
                              interaction.depth = 3, 
                              shrinkage = 0.001)
     
+    }else{ # if the optimal number of trees cannot be identified in gbm
+      
+      abundance_boot[[boot]]$abundance <- as.numeric(as.character(abundance_boot[[boot]]$abundance))
+      
+      # find the best model using gbm
+      times = 0
+      gbm.mod.perf <- NULL
+      while(is.null(gbm.mod.perf)){
+      gbm.mod.perf <- tryCatch(dismo::gbm.step(data = data.frame(abundance_boot[[boot]]),
+                                      gbm.x = 4:ncol(data.frame(abundance_boot[[boot]])),
+                                      gbm.y = 3,
+                                      family = 'poisson', # cannot have multinomial in this package, but also cannot fit models with single covariate and cross validation in gbm
+                                      tree.complexity = 3,
+                                      learning.rate = 0.001-(0.0001*times),
+                                      n.folds = 10, 
+                                      bag.fraction = 0.8, 
+                                      plot.main = F)$n.trees, error = function(e) NULL)
+      times <- times + 1
+      if(times == 500){stop()}
+      }
+      
+      abundance_boot[[boot]]$abundance <- as.ordered(abundance_boot[[boot]]$abundance)
+      
+      model_fit[[boot]] <- tryCatch(gbm(formula = brt_formula,
+                                        data = abundance_boot[[boot]], 
+                                        distribution = family, 
+                                        n.trees = gbm.mod.perf,
+                                        bag.fraction = 0.8,
+                                        interaction.depth = 3, 
+                                        shrinkage = 0.001), error = identity)
+      
+      if(class(model_fit[[boot]])[1] == 'simpleError'){
+        verification_observed[[boot]] <- NA
+        validation_observed[[boot]]   <- NA
+        verification_predict[[boot]]  <- NA
+        validation_predict[[boot]]    <- NA
+        next
+        }
+    
+    }
+    
     }else{
       
+      # the conditional statements occur here because
+      # if the dataset is a 2nd stage model with one covariate then the multinomial throwns an error in the gbm function
+      # note that we only reach this stage in the function if the above is true, so we can code conditional on all multinomial errors being converted to poisson for practicality
+      if(family == 'multinomial'){family_conditional <- 'poisson'}else{family_conditional<-family}
       abundance_boot[[boot]]$abundance <- as.numeric(as.character(abundance_boot[[boot]]$abundance))
       
       gbm.mod.perf <- dismo::gbm.step(data = data.frame(abundance_boot[[boot]]),
                       gbm.x = 4, 
                       gbm.y = 3,
-                      family = family, # cannot have multinomial in this package, but also cannot fit models with single covariate and cross validation in gbm
+                      family = family_conditional, # cannot have multinomial in this package, but also cannot fit models with single covariate and cross validation in gbm
                       tree.complexity = 3,
                       learning.rate = 0.001,
                       n.folds = 10, 
-                      bag.fraction = 0.75, 
+                      bag.fraction = 0.8, 
                       plot.main = F)$n.trees
+      
+      #abundance_boot[[boot]]$abundance <- if(family_conditional == 'multinomial'){as.ordered(abundance_boot[[boot]]$abundance)}else{as.numeric(abundance_boot[[boot]]$abundance)}
       
       model_fit[[boot]] <- gbm(formula = brt_formula,
                                data = tibble(abundance = abundance_boot[[boot]]$abundance,
-                                             cov1=abundance_boot[[boot]]$cov1), 
-                               distribution = family, 
+                                             cov1      = abundance_boot[[boot]]$cov1), 
+                               distribution = family_conditional, 
                                n.trees = gbm.mod.perf,
-                               interaction.depth = 1, 
+                               bag.fraction = 0.8,
+                               interaction.depth = 3, 
                                shrinkage = 0.001)
       
     }
     
-    # summary(model_fit[[boot]], method = relative.influence, plotit = T)
-    
     ### PREDICTIONS
-    
-    
-    
     
     # make discrete predictions
     if(discrete == T){
       
       predictions_boot_verification <- predict(model_fit[[boot]], data.frame(abundance_boot[[boot]]), n.trees = gbm.mod.perf, type = 'response')
-      predictions_boot_verification <- apply(predictions_boot_verification, 1,
+      predictions_boot_validation   <- predict(model_fit[[boot]], validation, n.trees = gbm.mod.perf, type = 'response')
+      if(length(covNames_new) != 1){ # this conditional is in place because the 2-stage abundance models do not use multinomial distributions
+        predictions_boot_verification <- apply(predictions_boot_verification, 1,
                                              function(x){
                                                weights = x
                                                values = colnames(predictions_boot_verification)
                                                weighted.mean(as.numeric(values), weights)
                                              })
-      predictions_boot_validation   <- predict(model_fit[[boot]], validation, n.trees = gbm.mod.perf, type = 'response')
-      predictions_boot_validation   <- apply(predictions_boot_validation, 1,
+       predictions_boot_validation   <- apply(predictions_boot_validation, 1,
                                              function(x){
                                                weights = x
                                                values = colnames(predictions_boot_validation)
                                                weighted.mean(as.numeric(values), weights)
-                                             }
-      )
+                                             })
+      }
       
       verification_predict[[boot]]  <- as.numeric(as.character(predictions_boot_verification))
       verification_observed[[boot]] <- as.numeric(as.character(abundance_boot[[boot]]$abundance))
@@ -252,7 +272,25 @@ brt_function_boot <- function(abundance = abundance,
       }
     }
   } # end of bootstrapping loop
-
+  
+  if(sum(is.na(verification_observed)) == 10){
+    error_name <- paste0(if(is.na(transformation)){'raw'}else{transformation}, '_',
+                        'brt' , '_', 
+                        if(discrete == T){'discrete_'}else{'continuous_'}, 
+                        family, 
+                        '.txt')
+    dir.create(base_dir, recursive = T)
+    # save error message so can quickly diagnose
+    fileConn<-file(paste0(base_dir, '/', error_name))
+    writeLines('lack of data error', fileConn)
+    close(fileConn)
+    return(NA)}
+  
+  verification_observed <- verification_observed[!is.na(verification_observed)]
+  validation_observed <- validation_observed[!is.na(validation_observed)]
+  verification_predict <- verification_predict[!is.na(verification_predict)]
+  validation_predict <- validation_predict[!is.na(validation_predict)]
+  
   # MAKE PREDICTIONS OBJECT
   # extract boostrapped predictions
   extracted_predictions <- tibble(dataset = dataset, 

@@ -99,6 +99,7 @@ occupancy_ensemble <- function(abundance = abundance,
   gam_predict_validation <- list() # empty predict object
   rf_predict_validation  <- list() # empty predict object
   brt_predict_validation <- list() # empty predict object
+  errors <- c()
   
   # for loop to create the bootstraps and fit the models 
   #n_bootstrap <- ifelse(sum(abundance$abundance %in% 0) > 0, n_bootstrap, 1)
@@ -158,7 +159,22 @@ occupancy_ensemble <- function(abundance = abundance,
     
     
   ### FIT GAM
-    gam_fit[[boot]] <- gam(model_formula_gam,data=occurrence_boot[[boot]],family='binomial',select=TRUE, method = 'ML')
+    
+    # test indiviual terms fail
+    fail_cov <- !is.na(lapply(1:(length(occurrence_boot[[boot]])-3), 
+                              function(x) 
+                                tryCatch(
+                      gam(occurrence ~ s(cov, k = 3),
+                          data = data.frame(occurrence = occurrence_boot[[boot]]$occurrence,
+                                           cov = data.frame(occurrence_boot[[boot]])[,x+3]),
+                          family = binomial, 
+                          method = 'ML'),
+                                  error = function(e) NA)))
+    
+    covNames_combined_modified <- paste0(covNames_splines[fail_cov], collapse = '+')
+    model_formula_modified <- as.formula(paste0(response, covNames_combined_modified))
+    
+    gam_fit[[boot]] <- gam(model_formula_modified, data=occurrence_boot[[boot]], family='binomial', select=TRUE, method = 'ML')
    
     gam_predict_verification[[boot]] <- as.numeric(predict(gam_fit[[boot]], data.frame(occurrence_boot[[boot]]), type = 'response'))
     gam_predict_validation[[boot]]   <- as.numeric(predict(gam_fit[[boot]], val_occurrence, type = 'response'))
@@ -205,8 +221,7 @@ occupancy_ensemble <- function(abundance = abundance,
                                                                                       n.trees = gbm.mod.perf, 
                                                                                       type = 'response'))[,1]))
     
-  }
-    
+    }
   
   # aggregate suitability estimates for each model type
   suitability_ensemble <- list()
@@ -215,12 +230,14 @@ occupancy_ensemble <- function(abundance = abundance,
                                                                                 gam_predict_verification[[i]],
                                                                                 rf_predict_verification[[i]],
                                                                                 brt_predict_verification[[i]])))
-      validation_ensemble[[i]]                      <- rowMeans(simplify2array(list(glm_predict_validation[[i]],
+      validation_ensemble[[i]]                  <- rowMeans(simplify2array(list(glm_predict_validation[[i]],
                                                                                 gam_predict_validation[[i]],
                                                                                 rf_predict_validation[[i]],
                                                                                 brt_predict_validation[[i]])))
       
     }
+  
+  
   
   # combine into single suitability ensemble object
   suitability_ensemble <- do.call(rbind, occurrence_boot)[,c('SiteLongitude', 'SiteLatitude', 'suitability_ensemble')]
