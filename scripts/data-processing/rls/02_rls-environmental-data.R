@@ -52,78 +52,104 @@ rls_points <- SpatialPoints(cbind(rls_abun$SiteLongitude, rls_abun$SiteLatitude)
 # extract depth
 # https://www.gebco.net/data_and_products/gridded_bathymetry_data/ 
 # new data for 2019. 
-depth <- raster("raw-data/GEBCO_2019/GEBCO_2019.nc", CRS = Proj)
+depth <- raster("/Volumes/RF-env-data/reef-futures/env-data/GEBCO_2019/GEBCO_2019.nc", CRS = Proj)
 # plot(depth)
 rls_xy$Depth_GEBCO <- raster::extract(depth, rls_points)
 
-# bio-oracle-v2 ----
-# stack and extract bio-oracle v2 
-bio_orc <- list.files('raw-data/bio-oracle-v2', full.names = T)
-bio_orc_stack <- stack(bio_orc)
-crs(bio_orc_stack) <- Proj
-bio_orc_stack <- crop(bio_orc_stack, bbox(rls_points) + c(-1, -1, 1, 1))
 
-# rename values 
-names(bio_orc_stack) <- c('calcite.mean', 'current.velocity.mean', 'o2.min', 
-                          'iron.mean', 'nitrate.mean', 'pH', 'phosphate', 
-                          'PP.mean', 'salinity.mean', 'silicate.mean', 
-                          'sst.max', 'sst.min', 'sst.mean')
+# read in rasters developed for reef-futures ----
 
-# plot distribution of variables
-hist(log10(bio_orc_stack$calcite.mean))
-hist(log10(bio_orc_stack$current.velocity.mean))
-hist(bio_orc_stack$o2.min)
-hist(log10(bio_orc_stack$iron.mean))
-hist(log10(bio_orc_stack$nitrate.mean))
-hist(log(bio_orc_stack$pH))
-hist(bio_orc_stack$phosphate)
-hist(log10(bio_orc_stack$PP.mean))
-hist(bio_orc_stack$salinity.mean)
-hist(log(bio_orc_stack$silicate.mean))
-hist(bio_orc_stack$sst.max)
-hist(bio_orc_stack$sst.min)
-hist(bio_orc_stack$sst.mean)
+
+# read in an stack the rasters
+
+rf_covs <- stack(list.files('/Users/cwaldock/Dropbox/ETH_REEF_FUTURES/abundance-comparison/raw-data/marine_rasters_reef_futures', 
+           recursive = T, full.names = T))
+
+# rename the rasters
+
+names(rf_covs) <- gsub('.nc', '', lapply(str_split(list.files('/Users/cwaldock/Dropbox/ETH_REEF_FUTURES/abundance-comparison/raw-data/marine_rasters_reef_futures', 
+                             recursive = T, full.names = F), '/'), function(x){x[[2]]}))
+
+# plot to test
+
+#plot(rf_covs)
+
+# remove temperature variables and handle seperately for cross validation
+
+rf_covs <- rf_covs[[-grep('sst', names(rf_covs))]]
+
+# ensure projection is standard
+
+crs(rf_covs) <- Proj
+
+# crop to area of interest
+
+rf_covs <- crop(rf_covs, bbox(rls_points) + c(-1, -1, 1, 1))
+
+# plot distribution of all varibles
+view(summarytools::dfSummary(rasterToPoints(rf_covs)))
+
+hist(log10(rf_covs$chl_max))
+hist(log10(rf_covs$chl_mean))
+hist(log10(rf_covs$chl_min))
+
+hist(log10(rf_covs$dhw_max))
+hist(log10(rf_covs$dhw_mean))
+hist(log10(rf_covs$dhw_min+1))
+
+hist(log10(rf_covs$NPP_max))
+hist(log10(rf_covs$NPP_mean))
+hist(log10(rf_covs$NPP_min))
+
+hist(rf_covs$pH_max)
+hist(rf_covs$pH_mean)
+hist(rf_covs$pH_min)
+
+hist(rf_covs$SSS_max)
+hist(rf_covs$SSS_mean)
+hist(rf_covs$SSS_min)
+
 
 # transform variables
-bio_orc_stack$calcite.mean <- calc(bio_orc_stack$calcite.mean, log10)
-bio_orc_stack$current.velocity.mean <- calc(bio_orc_stack$current.velocity.mean, log10)
-bio_orc_stack$iron.mean <- calc(bio_orc_stack$iron.mean, log10)
-bio_orc_stack$nitrate.mean <- calc(bio_orc_stack$nitrate.mean, log10)
-bio_orc_stack$pH <- calc(bio_orc_stack$pH, log10)
-bio_orc_stack$PP.mean <- calc(bio_orc_stack$PP.mean, log10)
-bio_orc_stack$silicate.mean <- calc(bio_orc_stack$silicate.mean, log)
 
-# plot all bio-orc distributions
-dev.off(); plot(bio_orc_stack)
+log10_vars <- c('chl_max', 'chl_mean', 'chl_min', 
+                'dhw_max', 'dhw_mean', 'dhw_min',
+                'NPP_max', 'NPP_mean', 'NPP_min')
 
-# find NAs
-for(i in 1:length(names(bio_orc_stack))){
+for(i in 1:length(log10_vars)){
+  rf_covs[[log10_vars[i]]][] <- log10(rf_covs[[log10_vars[i]]]+1)[]
+}
+
+
+# find NAs (shouldn't be any because of mask standardisation)
+
+for(i in 1:length(names(rf_covs))){
   print(i)
-  bio_orc_stack[[i]] <- force(FillSiteNAs(StackLayer = bio_orc_stack[[i]], RLS_Sites = rls_points))
+  rf_covs[[i]] <- force(FillSiteNAs(StackLayer = rf_covs[[i]], RLS_Sites = rls_points))
 }
 
 # extract
-bio_orc_ext <- data.frame(extract(bio_orc_stack, rls_points))
+rf_covs_ext <- data.frame(extract(rf_covs, rls_points))
 
 # check for NAs
-sum(is.na(bio_orc_ext))
+
+table(is.na(rf_covs_ext))
 
 # check distributions
-view(dfSummary(bio_orc_ext))
+view(dfSummary(rf_covs_ext))
 
 # estimate principal components using robust pca
-bio_orc_ext_scaled <- scale(bio_orc_ext, scale = T, center = T)
-resRobSvd <- pcaMethods::pca(bio_orc_ext_scaled, 
+resRobSvd <- pcaMethods::pca(rf_covs_ext, 
                              method = "robustPca", 
-                             center = F, 
-                             scale = NULL, 
-                             nPcs = dim(bio_orc_ext)[2])
+                             center = T,
+                             scale = 'uv', 
+                             nPcs = dim(rf_covs_ext)[2])
 
-resRobSvd # 6 loadings appear important and explain 75% variation, and all more than 1%
-Loadings <- resRobSvd@loadings[,1:5]
+resRobSvd # 3 loadings appear important and explain ~75% variation, and all more than 1%
+Loadings <- resRobSvd@loadings[,1:3]
 Loadings <- reshape2::melt(Loadings)
 
-pdf(file = 'figures/robustPCA-env-covariates.pdf', width = 7.5, height = 7.5)
+pdf(file = 'figures/robustPCA-rls_env-covariates.pdf', width = 7.5, height = 7.5)
 ggplot(Loadings) + 
   geom_bar(aes(x = Var1, y = value, fill = value), stat = 'identity') +
   theme_bw() + 
@@ -133,20 +159,59 @@ ggplot(Loadings) +
   ylab('Loading weight') + xlab(NULL) 
 dev.off()
 
-#slplot(resRobSvd, scoresLoadings = c(T,T))
+slplot(resRobSvd, scoresLoadings = c(T,T))
 biplot(resRobSvd)
 plotPcs(resRobSvd)
 
 # get values to model with
-bio_orc_ext$robPCA_1 <- as.numeric(resRobSvd@scores[,1])
-bio_orc_ext$robPCA_2 <- as.numeric(resRobSvd@scores[,2]) 
-bio_orc_ext$robPCA_3 <- as.numeric(resRobSvd@scores[,3])
-bio_orc_ext$robPCA_4 <- as.numeric(resRobSvd@scores[,4]) 
-bio_orc_ext$robPCA_5 <- as.numeric(resRobSvd@scores[,5])
-#bio_orc_ext$robPCA_6 <- as.numeric(resRobSvd@scores[,6]) 
+rf_covs_ext$robPCA_1 <- as.numeric(resRobSvd@scores[,1])
+rf_covs_ext$robPCA_2 <- as.numeric(resRobSvd@scores[,2]) 
+rf_covs_ext$robPCA_3 <- as.numeric(resRobSvd@scores[,3])
 
 # bind to rls
-rls_xy <- cbind(rls_xy, bio_orc_ext)
+rls_xy <- cbind(rls_xy, rf_covs_ext)
+
+# sst (doing this seperately because will be the axis of change) ----
+
+sst <- stack(list.files('/Users/cwaldock/Dropbox/ETH_REEF_FUTURES/abundance-comparison/raw-data/marine_rasters_reef_futures/sst', 
+                            recursive = T, full.names = T))
+
+# rename the rasters
+
+names(sst) <- gsub('.nc', '', lapply(str_split(list.files('/Users/cwaldock/Dropbox/ETH_REEF_FUTURES/abundance-comparison/raw-data/marine_rasters_reef_futures/sst', 
+                                                              recursive = T, full.names = F), '/'), function(x){x[[1]]}))
+
+# double check projection is correct
+
+crs(sst) <- Proj
+
+# crop to area of interest
+
+sst <- crop(sst, bbox(rls_points) + c(-1, -1, 1, 1))
+
+# double check for NAs
+
+for(i in 1:length(names(sst))){
+  print(i)
+  sst[[i]] <- force(FillSiteNAs(StackLayer = sst[[i]], RLS_Sites = rls_points))
+}
+
+# extract
+
+sst_ext <- data.frame(extract(sst, rls_points))
+
+# check for NAs
+
+table(is.na(sst_ext))
+
+# check distributions
+
+view(dfSummary(sst_ext))
+
+# bind to rls
+
+rls_xy <- cbind(rls_xy, sst_ext)
+
 
 # msec ----
 
@@ -201,6 +266,7 @@ rls_xy <- cbind(rls_xy, MSEC_ext)
 table(is.na(rls_xy))
 
 # transform, scale and centre all non-pca variables ---- 
+
 rls_xy$Depth_GEBCO[which(rls_xy$Depth_GEBCO > 0)] <- 0 # lose the differentiation between land and sea.
 hist(log10(round(abs(rls_xy$Depth_GEBCO+1))))
 rls_xy$Depth_GEBCO_transformed <- log10(round(abs(rls_xy$Depth_GEBCO)+1))
@@ -210,6 +276,39 @@ table(is.na(rls_xy))
 
 # save rls_xy ----
 save(rls_xy, file = 'data/rls_covariates.RData')
+
+
+# create RLS raster stack of env. variables for projection ----
+
+# read in global mask create for reef-futures project in reef-futures-data-processing project
+
+global_mask <- raster('data/global_mask.nc')
+
+# crop global mask to bounding box
+
+rls_mask <- crop(global_mask, bbox(rls_points) + c(-1, -1, 1, 1))
+
+# revalue
+rls_mask[rls_mask<2]=NA
+rls_mask[rls_mask==2]=1
+
+# load in function
+source('scripts/data-processing/standardize_raster.R')
+
+# create raster list
+rls_rasters <- c(as.list(rf_covs), 
+                 list(depth, 
+                      sst, 
+                      MSEC))
+
+# perform standardizations
+rls_layers <- lapply(1:length(rls_rasters), 
+                                 function(x){ 
+                                   print(x) 
+                                   standardize_raster(rls_mask, rls_rasters[[x]])}
+)
+
+
 
 
 
