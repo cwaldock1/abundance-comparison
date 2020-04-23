@@ -1,8 +1,8 @@
 
 # function to standaridse rasters to a common mask (values of NA and 1)
 
-standardize_raster <- function(masterMask, targetRaster){
-  
+standardize_raster <- function(masterMask, targetRaster, initial_constraint = F, maxdist = 10){
+  require(gstat)
   # check if extent and resolution are the same
   if(extent(masterMask) != extent(targetRaster)){
     targetRaster <- crop(targetRaster, bbox(masterMask))
@@ -13,6 +13,15 @@ standardize_raster <- function(masterMask, targetRaster){
   }
   
   manipulatedRaster <- targetRaster
+  
+  # constrain the area initially so that only nearby cells are used for interpolation (only needed for the RLS data 
+  # as don't want pelagic values to influence the coast)
+  if(initial_constraint == T){
+    
+  # Switch off all areas that are not target in the mask (target = 1)
+  manipulatedRaster[masterMask[]!=1 | is.na(masterMask[])] <- NA
+  
+  }
   
   # Turns all potential projected area that does not have a projection to -999
   
@@ -33,7 +42,8 @@ standardize_raster <- function(masterMask, targetRaster){
   # Perform inverse distance weighting
   
   idwmodel <- idw(value~1, knowndt, unknowndt,
-                  maxdist = 10, idp = 5)
+                  maxdist = maxdist, # degrees
+                  idp = 5)
   
   # Fill the target raster that are -999 (defined above)
   

@@ -10,10 +10,10 @@ sample_raster_NA <- function(r, xy){
 FillSiteNAs <- function(StackLayer, # Environmental stack layer
                         RLS_Sites   # Coordiantes as a spatial points database.  
 ){
-  
-  # Do first extraction that finds the NA values inside the subset (extract(StackLayer, RLS_Sites))
+
+    # Do first extraction that finds the NA values inside the subset (extract(StackLayer, RLS_Sites))
   # Find the coordinates at the values
-  xy <- RLS_Sites@coords[is.na(extract(StackLayer, RLS_Sites)),]
+  xy <- RLS_Sites@coords[is.na(raster::extract(StackLayer, RLS_Sites)),]
   
   # Match to the nearest raster cell using a pre-defined function 
   NA_coords <- force(sample_raster_NA(r = StackLayer, xy = xy))
@@ -129,7 +129,7 @@ for(i in 1:length(names(rf_covs))){
 }
 
 # extract
-rf_covs_ext <- data.frame(extract(rf_covs, rls_points))
+rf_covs_ext <- data.frame(raster::extract(rf_covs, rls_points))
 
 # check for NAs
 
@@ -198,7 +198,7 @@ for(i in 1:length(names(sst))){
 
 # extract
 
-sst_ext <- data.frame(extract(sst, rls_points))
+sst_ext <- data.frame(raster::extract(sst, rls_points))
 
 # check for NAs
 
@@ -254,7 +254,7 @@ for(i in 1:length(names(MSEC))){
 }
 
 # extract points
-MSEC_ext <- data.frame(extract(MSEC, rls_points))
+MSEC_ext <- data.frame(raster::extract(MSEC, rls_points))
 
 # check for NAs
 table(is.na(MSEC_ext))
@@ -282,15 +282,7 @@ save(rls_xy, file = 'data/rls_covariates.RData')
 
 # read in global mask create for reef-futures project in reef-futures-data-processing project
 
-global_mask <- raster('data/global_mask.nc')
-
-# crop global mask to bounding box
-
-rls_mask <- crop(global_mask, bbox(rls_points) + c(-1, -1, 1, 1))
-
-# revalue
-rls_mask[rls_mask<2]=NA
-rls_mask[rls_mask==2]=1
+rls_aus_grid <- raster('data/rls-aus-grid.nc')
 
 # load in function
 source('scripts/data-processing/standardize_raster.R')
@@ -305,8 +297,69 @@ rls_rasters <- c(as.list(rf_covs),
 rls_layers <- lapply(1:length(rls_rasters), 
                                  function(x){ 
                                    print(x) 
-                                   standardize_raster(rls_mask, rls_rasters[[x]])}
+                                   standardize_raster(masterMask   = rls_aus_grid, 
+                                                      targetRaster = rls_rasters[[x]], 
+                                                      initial_constraint = T, 
+                                                      maxdist = 2)}
 )
+
+# stack standarized rasters 
+
+rls_standardized <- stack(rls_layers)
+
+# rename 
+
+raster_names <- do.call(c, lapply(rls_rasters, names))
+names(rls_standardized) <- raster_names 
+
+# save standardized raters 
+
+dir.create('data/rls_rasters/')
+for(i in 1:nlayers(rls_standardized)){
+  
+  writeRaster(rls_standardized[[i]],
+              paste0('data/rls_rasters/', names(rls_standardized)[i], '.grd'),
+              bylayer = T,
+              overwrite=T)
+  
+}
+
+# apply PCA parameters to climatic variables ----
+
+# get raster
+
+rls_climate  <- rasterToPoints(rls_standardized[[names(rf_covs)]])
+rls_all_xy <- rls_climate[,1:2]
+
+# check identical ordering of variables
+
+identical(colnames(resRobSvd@completeObs), colnames(rls_climate[,-c(1,2)]))
+
+# project rasters
+
+rls_raster_predictions <- predict(resRobSvd, rls_climate[,-c(1,2)], pcs = 3)
+
+# apply to rasters
+
+rls_PCA_stack <- stack(lapply(1:3, function(x) {rasterFromXYZ(cbind(rls_all_xy, rls_raster_predictions$scores[,x]))}))
+
+plot(rls_PCA_stack)
+
+# rename 
+
+names(rls_PCA_stack) <- c('environmental-pc1', 'environmental-pc2', 'environmental-pc3')
+
+# write pcas to rasters
+
+dir.create('data/rls_rasters/')
+for(i in 1:nlayers(rls_PCA_stack)){
+  
+  writeRaster(rls_PCA_stack[[i]],
+              paste0('data/rls_rasters/', names(rls_PCA_stack)[i], '.grd'),
+              bylayer = T,
+              overwrite=T)
+  
+}
 
 
 

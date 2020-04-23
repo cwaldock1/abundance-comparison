@@ -315,7 +315,7 @@ for(i in 1:nlayers(bbs_standardized)){
   
 }
 
-# apply PCA parameters to bioclim variables ----
+# apply PCA parameters to merraclim variables ----
 
 # get raster
 
