@@ -35,7 +35,7 @@ install.lib<-lib_vect[!lib_vect %in% installed.packages()]
 for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(lib_vect,require,character=TRUE)
 
-# load in rls sites for matching ----
+# load in bbs sites for matching ----
 
 # projection
 Proj <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"
@@ -59,6 +59,10 @@ elevation <- raster("/Volumes/RF-env-data/reef-futures/env-data/GEBCO_2019/GEBCO
 
 # plot(depth)
 bbs_xy$Elevation_GEBCO <- raster::extract(elevation, bbs_points)
+
+elevation_scale_object <- scale(bbs_xy$Elevation_GEBCO, scale = T, center = T)
+
+bbs_xy$Elevation_GEBCO <- as.numeric(elevation_scale_object)
 
 # MERRAclim ----
 
@@ -232,8 +236,7 @@ bbs_xy <- cbind(bbs_xy, primary_forest_ext)
 table(is.na(bbs_xy))
 
 # save rls_xy ----
-# save(bbs_xy, file = 'data/bbs_covariates.RData')
-
+save(bbs_xy, file = 'data/bbs_covariates.RData')
 
 # create stacked raster of key variables for projections ----
 
@@ -272,7 +275,7 @@ masterMask   <- base_raster
 targetRaster <- human_pop
 
 # load in function
-source('scripts/data-processing/standardize_raster.R')
+source('scripts/data-processing/functions/standardize_raster.R')
 
 standardize_raster(base_raster, human_pop)
 
@@ -288,7 +291,7 @@ bbs_rasters <- c(as.list(mean_stack), # merraclim
 # perform standardisation
 
 bbs_layers <- parallel::mclapply(1:length(bbs_rasters), 
-                                 mc.cores = 4, 
+                                 mc.cores = 5, 
                                  function(x){ 
                                    print(x) 
                                    standardize_raster(base_raster, bbs_rasters[[x]])}
@@ -302,6 +305,12 @@ bbs_standardized <- stack(bbs_layers)
 
 raster_names <- do.call(c, lapply(bbs_rasters, names))
 names(bbs_standardized) <- raster_names 
+
+# transform as for extracted values (only necessary for elevation)
+ele_centre <- attr(elevation_scale_object, 'scaled:center')
+ele_scale  <- attr(elevation_scale_object, 'scaled:scale')
+
+bbs_standardized$Elevation.relative.to.sea.level <- ((bbs_standardized$Elevation.relative.to.sea.level) - ele_centre) / ele_scale
 
 # save standardized raters 
 

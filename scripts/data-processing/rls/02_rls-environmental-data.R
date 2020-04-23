@@ -360,10 +360,3 @@ for(i in 1:nlayers(rls_PCA_stack)){
               overwrite=T)
   
 }
-
-
-
-
-
-
-

@@ -15,11 +15,10 @@ load('data/rls_abun_modelling_data_v2.RData')
 # load covariates
 load('data/rls_covariates.RData')
 
-
 # Join temperature data and set up new cross-validations ----
 
-# join in sst.mean
-rls_abun_sst <- left_join(rls_abun %>% select(-set), rls_xy %>% select(SiteLongitude, SiteLatitude, sst.mean))
+# join in sst_mean
+rls_abun_sst <- left_join(rls_abun %>% select(-set), rls_xy %>% select(SiteLongitude, SiteLatitude, sst_mean))
 
 # lapply subsets 
 rls_abun_sst_2 <- lapply(1:length(unique(rls_abun_sst$TAXONOMIC_NAME)), function(x){
@@ -33,13 +32,13 @@ rls_abun_sst_2 <- lapply(1:length(unique(rls_abun_sst$TAXONOMIC_NAME)), function
   sample_size <- round(round(nrow(species_data)*0.8) / 2) # get sample size for cross validations
   
   # estimate 80th quantile in absences and presences
-  absences_sst_quantile <- as.numeric(quantile(all_absences$sst.mean, 0.8, na.rm = T))
-  presences_sst_quantile <- as.numeric(quantile(all_presences$sst.mean, 0.8, na.rm = T))
+  absences_sst_quantile <- as.numeric(quantile(all_absences$sst_mean, 0.8, na.rm = T))
+  presences_sst_quantile <- as.numeric(quantile(all_presences$sst_mean, 0.8, na.rm = T))
   
-  absences_sample_fitting    <- all_absences[ -which(all_absences$sst.mean  > absences_sst_quantile),]
-  presence_sample_fitting    <- all_presences[-which(all_presences$sst.mean > presences_sst_quantile),]
-  absences_sample_validation <- all_absences[ which(all_absences$sst.mean  > absences_sst_quantile),]
-  presence_sample_validation <- all_presences[which(all_presences$sst.mean > presences_sst_quantile),]
+  absences_sample_fitting    <- all_absences[ -which(all_absences$sst_mean  > absences_sst_quantile),]
+  presence_sample_fitting    <- all_presences[-which(all_presences$sst_mean > presences_sst_quantile),]
+  absences_sample_validation <- all_absences[ which(all_absences$sst_mean  > absences_sst_quantile),]
+  presence_sample_validation <- all_presences[which(all_presences$sst_mean > presences_sst_quantile),]
   
   fitting    <- rbind(absences_sample_fitting, presence_sample_fitting)
   validation <- rbind(absences_sample_validation, presence_sample_validation)
@@ -65,7 +64,7 @@ save(rls_abun_sst, # whole data object as datafrane
      rls_abun_sst_list, # data object as list
      rls_abun_sst_fitting, # listed fitting data
      rls_abun_sst_validation, # list validation data
-     file = 'data/rls_abun_modelling_data_sst.RData')
+     file = 'data/rls_abun_modelling_data_sst_oob_crossValidation.RData')
 
 
 
