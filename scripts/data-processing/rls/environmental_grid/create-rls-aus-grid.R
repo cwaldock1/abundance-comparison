@@ -1,7 +1,7 @@
 ### script to create a standardised global grid 
 
 # libraries ----
-lib_vect <- c('raster', 'rgdal', 'gdalUtils', 'rgeos')
+lib_vect <- c('tidyverse', 'raster', 'rgdal', 'gdalUtils', 'rgeos')
 install.lib<-lib_vect[!lib_vect %in% installed.packages()]
 for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(lib_vect,require,character=TRUE)
@@ -11,7 +11,7 @@ sapply(lib_vect,require,character=TRUE)
 # create empty extent object
 global_grid <- raster(extent(c(-180, 180, -90, 90)), 
                       crs = '+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0', 
-                      res = 0.005)
+                      res = 0.025)
 
 # set values to 1
 global_grid[] <- 1
@@ -19,6 +19,14 @@ global_grid[] <- 1
 # test plot
 plot(global_grid)
 
+# read in RLS bounding box ----
+
+# projection
+Proj <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"
+
+load(file = 'data/rls_abun_modelling_data_v2.RData')
+rls_xy     <- data.frame(SiteLongitude = rls_abun$SiteLongitude, SiteLatitude = rls_abun$SiteLatitude) %>% unique()
+rls_points <- SpatialPoints(cbind(rls_abun$SiteLongitude, rls_abun$SiteLatitude) %>% unique(), proj4string = crs(Proj))
 
 # depth ----
 depth <- raster('/Volumes/RF-env-data/reef-futures/env-data/GEBCO_2019/GEBCO_2019.nc')
@@ -105,71 +113,36 @@ coral <- readOGR(dsn = '/Volumes/RF-env-data/reef-futures/env-data/WCMC_ReefData
 
 # created masked global raster ----
 
-# first convert to lines (lines is any intersecting cell
-# polygons must contain the centre of the cell)
-coastlines_SL <- as(coastlines, 'SpatialLinesDataFrame')
-coastlines_buffered_SL <- as(coastlines_buffered, 'SpatialLines')
+# crop coastlines
 
-# global coastlines are buffered to 0.25°
-open_ocean   <- mask(global_grid, coastlines_SL, inverse = T)
-buffered_ocean <- mask(global_grid, coastlines_buffered_SL, inverse = F)
-plot(open_ocean)
-plot(buffered_ocean)
-plot(open_ocean + buffered_ocean)
+coastlines          <- crop(coastlines, bbox(rls_points) + c(-1, -1, 1, 1))
+coastlines_buffered <- crop(coastlines_buffered, bbox(rls_points) + c(-1, -1, 1, 1))
 
-# create coast mask through summing
-coast_mask <- open_ocean + buffered_ocean
+# crop coral 
 
-# global reefs are buffered to 0.25°
-coral_mask <- mask(global_grid, coral, inverse = F)
-coral_mask[][is.na(coral_mask[])] <- 0 # convert to 0 so that sums work
-plot(coral_mask)
+coral          <- crop(coral, bbox(rls_points) + c(-1, -1, 1, 1))
 
-# turn coast mask with coral to 1s
-coast_mask[][coral_mask[] == 1] <- 1
-coast_mask[][coast_mask[] > 0] <- 1
+# create rls sites buffer
+crs(rls_points) <- NULL
+rls_polyons <- buffer(rls_points, 25000)
 
-# remove land from the oceans
-full_coastal_mask <- mask(coast_mask, coastlines, inverse = T)
-full_coastal_mask[][is.na(full_coastal_mask[])] <- 0
+# create union of buffered polygons
 
-# create final mask where land=NA, open ocean = 1 and coastal ocean = 2
-final_global_mask <- open_ocean + full_coastal_mask
-plot(final_global_mask)
+union_reef <- gUnion(gUnion(coastlines_buffered, coral), rls_polyons)
+plot(union_reef)
 
-# ensure all RLS sites are inside oceanic grid ----
+# mask land
 
-# load in site level data
-RLS_Sites <- read.csv('/Users/cwaldock/Dropbox/ETH_REEF_FUTURES/reef-futures-data-processing/processed-data/RLS-spatial-fish-data-extract-siteSummary.csv')
+union_reef_buffered_mask <- mask(aus_grid, union_reef)
+final_reef_area_aus      <- mask(union_reef_buffered_mask, coastlines, inverse = T)
 
-final_global_mask[cellFromXY(final_global_mask, unique(RLS_Sites[,c("SiteLongitude", "SiteLatitude")]))] <- 2
+plot(final_reef_area_aus)
+points(rls_points)
 
 # edit mask errors manually ----
 
-# gibraltar strait 
-plot(final_global_mask, xlim = c(-10, -0), ylim = c(30, 40))
-final_global_mask[][cellFromXY(final_global_mask, rbind(c(-5.75, 36.25)))] <- 2
-plot(final_global_mask, xlim = c(-8, -4), ylim = c(35, 38))
-
-# suez canal
-plot(final_global_mask, xlim = c(30, 40), ylim = c(22, 33))
-points(c(32.25, 32.25, 32.25, 32.25, 32.25, 32.25), c(29.75, 30, 30.25, 30.5, 30.75, 31))
-final_global_mask[][cellFromXY(final_global_mask, rbind(c(32.5, 29.25),
-                                                        c(32.25, 29.75), 
-                                                        c(32.25, 30), 
-                                                        c(32.25, 30.25), 
-                                                        c(32.25, 30.5),
-                                                        c(32.25, 30.75), 
-                                                        c(32.25, 31),
-                                                        c(32.25, 31.25)))] <- 2
-plot(final_global_mask, xlim = c(30, 35), ylim = c(28, 33))
-
-# double check panama canal is shut
-plot(final_global_mask, xlim = c(-90, -70), ylim = c(5, 15))
-
-plot(final_global_mask)
 
 # save the environmental mask layers ---- 
-writeRaster(final_global_mask, 'processed-data/environmental-data/environmental_grid/global_mask.nc', overwrite = T)
-final_global_mask <- raster('processed-data/environmental-data/environmental_grid/global_mask.nc')
+writeRaster(final_reef_area_aus, 'data/rls-aus-grid.nc', overwrite = T)
+final_reef_area_aus <- raster('')
 
