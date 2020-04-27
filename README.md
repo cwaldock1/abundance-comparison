@@ -71,3 +71,20 @@ _environmental-cross-validation_:
 • the out-the-bag is determined along one axis of a species environmental niche 
 • produces a  set of oob cross-validation data to which models are later fitted and tested.
 
+
+## __data-processing__
+
+### /fit-models
+
+_fit_all_models.R_:  
+File that contains all model calls with varying parameter settings amongst functions. Loads all model functions and essentially runs all models. Is called by the configuration files. 
+
+### /batchscripts  
+
+Contains 4 .R scripts that produce 4 batch files which call the configuration files than run the fit_all_models.R script. 
+
+### / rls or bbs 
+
+Contains two scripts each, one which runs the fit_all_models call using in-the-bag cross validation, and one that calls the fit_all_models.R script but using out-the-bag cross validation. 
+
+
