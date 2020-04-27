@@ -72,7 +72,7 @@ _environmental-cross-validation_:
 • produces a  set of oob cross-validation data to which models are later fitted and tested.
 
 
-## __data-processing__
+## __fitting-models__
 
 ### /fit-models
 
