@@ -74,6 +74,8 @@ _environmental-cross-validation_:
 
 ## __fitting-models__
 
+all models are fitted on the server of the landscape ecology group at ethz. 
+ 
 ### /fit-models
 
 _fit_all_models.R_:  
