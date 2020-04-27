@@ -37,7 +37,34 @@ __results__: here a series of functions will act on the evaluating-models object
 __figures__: here a series of functions will act on the evaluating-models object to give a set of standard results of interest  
 
 
-## data-processing - RLS
+## __data-processing__
+
+### /functions
+
+Function to extract absence records from a buffered size around a known occurrence record:  
+get_buffered_absences.R  
+  
+Function to standardize rasters to a common grid scheme through inverse distance weighted interpolation:  
+standardize_raster.R  
+
+### scripts  
+
+Both of the RLS and BBS datasets have the following scripts: 
+
+data-processing:  
+• reads in full datasets and selects appropriate fields  
+• aggregates abundances across years and local replicates  
+• filters species by number of records  
+• estimates species properties and filters to only 50 species in our different abundance classes  
+• buffers absences for each species  
+• saves a set of files containing species abundance information  
+
+
+environmental-data:  
+
+environmental-cross-validation:  
+
+
 
 
 scripts/01_rls-data-processing _aim of script is to produce a subset of the RLS data and species which provide an analysis of abundance. The output of this script is a matrix of sites by species that is sparse with all surveys performed in the autralian subset_
