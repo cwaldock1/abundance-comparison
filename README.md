@@ -1,8 +1,9 @@
-# abundance-comparison
+# __abundance-comparison__
 
 This README contains brief descriptions of the input data and the scripts used in the comparison of niche-abundance models. 
 
-# ecological survey data
+
+# __ecological survey data__
 
 ## Reef Life Survey
 
@@ -19,7 +20,22 @@ raw data downloaded via ftp server from the BBS website https://www.pwrc.usgs.go
 
 Documented in table XX in supporting materials.
 
-# scripts
+# __scripts__
+
+## organisation: 
+
+Scripts are organised into the following set of folders:
+
+__data-processing__: This set of scripts processes the raw survey data, subsets to our focal species and provides the inputs to the model scripts. 
+__fitting-models__: This set of scripts provides a configuration script with calls a long script of model calls (model-functions are in seperate folder). These are run on the ethz landscape ecological group server.  
+__model-functions__: Contains the set of functions to run focal models. 
+__evaluating-models__: Scripts to read and process the outputs of model calls. Here we want to produce one object that contains all the results and can be called into results scripts and figures scripts in standardized functions to produce a set of figures across the different ecological datasets. 
+
+Potentially necessary folders: 
+I want to avoid producing different scripts for the BBS data and the RLS data, and instead have a set of functions that produce the results of interest across these inputs so that they are easily modifiable and I won't have to copy and past results and figures scripts across to sets of scripts each time I change something in one script. 
+__results__: here a series of functions will act on the evaluating-models object to give a set of standard results of interest. 
+__figures__: here a series of functions will act on the evaluating-models object to give a set of standard results of interest
+
 
 ## data-processing - RLS
 
