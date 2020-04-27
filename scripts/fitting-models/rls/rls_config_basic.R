@@ -39,7 +39,7 @@ n_boots = 10
 dataset = 'rls'
 base_dir        = 'results/rls_basic'
 
-source('/Users/cwaldock/Dropbox/ETH_REEF_FUTURES/abundance-comparison/scripts/fitting-models/fit_all_models.R')
+source('scripts/fitting-models/fit-models/fit_all_models.R')
 
 
 

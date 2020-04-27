@@ -38,5 +38,5 @@ n_boots = 10
 dataset = 'bbs'
 base_dir        = 'results/bbs_oob_cv'
 
-source('/Users/cwaldock/Dropbox/ETH_REEF_FUTURES/abundance-comparison/scripts/fitting-models/fit-models/fit_all_models.R')
+source('scripts/fitting-models/fit-models/fit_all_models.R')
 

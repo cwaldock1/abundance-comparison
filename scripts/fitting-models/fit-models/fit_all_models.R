@@ -584,7 +584,7 @@ suitability <- occupancy_ensemble(abundance = abundance_input,
                                   species_name = unique(abundance_input$TAXONOMIC_NAME),
                                   n.cores=1) # remove the number of cores function when on server...
 
-dir.create(paste0(base_dir, '/suitability', recursive = T))
+dir.create(paste0(base_dir, '/suitability'), recursive = T)
 save(suitability, file = paste0(base_dir,'/suitability', '/', unique(abundance_input$TAXONOMIC_NAME), '.RData'))
 
 
