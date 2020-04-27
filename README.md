@@ -22,7 +22,7 @@ Documented in table XX in supporting materials.
 
 # __scripts__
 
-## organisation: 
+## __organisation__: 
 
 Scripts are organised into the following set of folders:  
   
@@ -34,7 +34,7 @@ __evaluating-models__: Scripts to read and process the outputs of model calls. H
 Potentially necessary folders:   
 I want to avoid producing different scripts for the BBS data and the RLS data, and instead have a set of functions that produce the results of interest across these inputs so that they are easily modifiable and I won't have to copy and past results and figures scripts across to sets of scripts each time I change something in one script.   
 __results__: here a series of functions will act on the evaluating-models object to give a set of standard results of interest.   
-__figures__: here a series of functions will act on the evaluating-models object to give a set of standard results of interest  
+__figures__: here a series of functions will act on the evaluating-models object to give a set of standard results of interest.  
 
 
 ## __data-processing__
@@ -42,39 +42,32 @@ __figures__: here a series of functions will act on the evaluating-models object
 ### /functions
 
 Function to extract absence records from a buffered size around a known occurrence record:  
-get_buffered_absences.R  
+_get_buffered_absences.R_  
   
 Function to standardize rasters to a common grid scheme through inverse distance weighted interpolation:  
-standardize_raster.R  
+_standardize_raster.R_    
 
-### scripts  
+### /scripts  
 
 Both of the RLS and BBS datasets have the following scripts: 
 
-data-processing:  
+_data-processing_:  
 • reads in full datasets and selects appropriate fields  
 • aggregates abundances across years and local replicates  
 • filters species by number of records  
 • estimates species properties and filters to only 50 species in our different abundance classes  
 • buffers absences for each species  
-• saves a set of files containing species abundance information  
+• saves a set of files containing species abundance information to which mdoels are later fitted and tests. 
 
+_environmental-data_:  
+• reads in and transforms all environmental rasters
+• extracts environment values of sites from rasters
+• performs PCA across relevant raster layers
+• builds set of standarized rasters with a common grid system and transformations that match the covariate dataset
+• produces the xy covariate dataset used in the models
 
-environmental-data:  
-
-environmental-cross-validation:  
-
-
-
-
-scripts/01_rls-data-processing _aim of script is to produce a subset of the RLS data and species which provide an analysis of abundance. The output of this script is a matrix of sites by species that is sparse with all surveys performed in the autralian subset_
-
-scripts/02_rls-environmental-data... 
-
-
-## data-processing - BBS
-
-### ../bbs/01-bbs-data-processing.R
-
-Script to read in the raw BBS datasets and process following the same procedures as above. 
+_environmental-cross-validation_:  
+• produces a set of data that have a in-the-bag sample to which models are fitted and a out-of-bag sample on which models are tests. 
+• the out-the-bag is determined along one axis of a species environmental niche 
+• produces a  set of oob cross-validation data to which models are later fitted and tested.
 
