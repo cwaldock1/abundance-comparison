@@ -3,7 +3,7 @@
 
 # packages ----
 
-lib_vect <- c('tidyverse', 'plyr')
+lib_vect <- c('tidyverse', 'plyr', 'data.table')
 install.lib<-lib_vect[!lib_vect %in% installed.packages()]
 for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(lib_vect,require,character=TRUE)
@@ -39,7 +39,7 @@ bbs_all <- lapply(bbs_files, function(x){
   
 })
 
-bbs_all_2 <- do.call(rbind.fill, bbs_all)
+bbs_all_2 <- do.call(plyr::rbind.fill, bbs_all)
 
 head(bbs_all_2)
 
@@ -99,7 +99,7 @@ bbs_filter_2 <- as_tibble(setDT(bbs_filter)[ , .(Num_mean = round(mean(Num, na.r
   unique() %>% 
   left_join(., bbs_filter %>% dplyr::select(CountryNum, StateNum, SiteCode, Longitude, Latitude) %>% unique())
 
-# filter by the specific species I want to investigate ----
+# clean species data ----
 
 # clean species data
 bbs_filter_2 <- left_join(bbs_filter_2, sp_list %>% dplyr::select(AOU, Genus, Species)) 
@@ -127,6 +127,7 @@ species_50 <- bbs_filter_2 %>%
   filter(n_per_species > 50) %>% 
   .$TAXONOMIC_NAME
 
+# filter by the specific species I want to investigate ----
 
 # spread data for estimating frequency 
 
@@ -189,6 +190,9 @@ species_properties <- species_properties %>% filter(mean_abundance >=3) %>% filt
 species_properties$mean_abundance_perc <- ecdf(species_properties$mean_abundance)(species_properties$mean_abundance)
 species_properties$frequency_perc      <- ecdf(species_properties$frequency)(species_properties$frequency)
 
+# save species properties object
+saveRDS(species_properties, 'data/bbs_species_properties.RDS')
+
 # high abundance high frequency 
 species_properties %>% 
   filter(mean_abundance_perc > 0.7, mean_abundance_perc < 0.9, 
@@ -221,12 +225,73 @@ species_properties %>% filter(mean_abundance_perc > 0.4, mean_abundance_perc < 0
   .$TAXONOMIC_NAME %>% as.character %>% .[1:10] -> aa_af
 
 
-# filter to species that we are interested in (defined above)
+# # filter to species that we are interested in (defined above)
+
+# ALL SPECIES create species-specific datasets including 0s from an object with all available sites ----
+
+source('scripts/data-processing/functions/get_buffered_absences.R')
+
+# obtain object with all sites 
+bbs_sites <- bbs_filter_2 %>% select(SiteCode, Latitude, Longitude) %>% unique()  %>% dplyr::rename(SiteLatitude = Latitude, SiteLongitude = Longitude)
+
+# obtain only numerical abundance from our focal species
+bbs_site_abun <- bbs_filter_2 %>% select(SiteCode, Latitude, Longitude, TAXONOMIC_NAME, Num)
+
+# change names to match across datasets
+bbs_site_abun <- bbs_site_abun %>% dplyr::rename(SiteLatitude = Latitude, SiteLongitude = Longitude)
+
+# create a list object that contains absences and presences
+bbs_sum_absences <- lapply(1:length(unique(bbs_site_abun$TAXONOMIC_NAME)), FUN = function(x){
+  
+  print(x)
+  
+  # buffer round the absences 
+  buffered_absence <- get_buffered_absences(presences = 
+                          bbs_site_abun %>% 
+                          filter(TAXONOMIC_NAME == unique(bbs_site_abun$TAXONOMIC_NAME)[x]), 
+                        sites = bbs_sites, 
+                        x_name = 'SiteLongitude',
+                        y_name = 'SiteLatitude',
+                        sp_name = 'TAXONOMIC_NAME', 
+                        coord_ref = '+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs +towgs84=0,0,0 +units=m'
+                        )
+  
+  # I should take 80%/20% of BOTH the abundance and absences (rather than a subsample of the whole dataset)
+  all_absences  <- buffered_absence %>% filter(Num == 0)  # absences
+  all_presences <- buffered_absence %>% filter(Num != 0)  # presences
+  absences_sample_fitting  <- sample(1:nrow(all_absences), round(nrow(all_absences)*0.8), replace = F)
+  presences_sample_fitting <- sample(1:nrow(all_presences), round(nrow(all_presences)*0.8), replace = F)
+  absences_sample_validation <- setdiff(1:nrow(all_absences), absences_sample_fitting)
+  presence_sample_validation <- setdiff(1:nrow(all_presences), absences_sample_fitting)
+  
+  all_absences[absences_sample_fitting,]     # absences - fitting
+  all_presences[presences_sample_fitting,]   # presences - fitting
+  all_absences[absences_sample_validation,]  # absences - validation
+  all_presences[presence_sample_validation,] # presences - validation
+  
+  fitting    <- rbind(all_absences[absences_sample_fitting,],    all_presences[presences_sample_fitting,])
+  validation <- rbind(all_absences[absences_sample_validation,], all_presences[presence_sample_validation,])
+  
+  fitting$set    <- 'fitting'
+  validation$set <- 'validation'
+  
+  list_outputs <- list(fitting = fitting, validation = validation)
+  
+  # create output directory
+  dir.create('data/bbs_all_basic/')
+
+  # save RDS
+  saveRDS(list_outputs, paste0('data/bbs_all_basic/', 
+                               as.character(gsub(' ','_',unique(buffered_absence$TAXONOMIC_NAME))),
+                               '.RDS'))
+
+  
+})
+
+# 50 SPECIES create species-specific datasets including 0s from an object with all available sites ----
+ 
+# filter to the species of interest
 bbs_filter_spp <- bbs_filter_2 %>% filter(TAXONOMIC_NAME %in% c(aa_af, ha_hf, ha_lf, la_hf, la_lf))
-
-# create species-specific datasets including 0s from an object with all available sites ----
-
-source('scripts/data-processing/get_buffered_absences.R')
 
 # obtain object with all sites 
 bbs_sites <- bbs_filter_spp %>% select(SiteCode, Latitude, Longitude) %>% unique()  %>% dplyr::rename(SiteLatitude = Latitude, SiteLongitude = Longitude)
@@ -237,25 +302,25 @@ bbs_site_abun <- bbs_filter_spp %>% select(SiteCode, Latitude, Longitude, TAXONO
 # change names to match across datasets
 bbs_site_abun <- bbs_site_abun %>% dplyr::rename(SiteLatitude = Latitude, SiteLongitude = Longitude)
 
-# create a list object that contains absences and presences
+# buffer species absences
 bbs_sum_absences <- lapply(1:length(unique(bbs_site_abun$TAXONOMIC_NAME)), FUN = function(x){
   
   print(x)
   
-  get_buffered_absences(presences = 
-                          bbs_site_abun %>% 
-                          filter(TAXONOMIC_NAME == unique(bbs_site_abun$TAXONOMIC_NAME)[x]), 
-                        sites = bbs_sites, 
-                        x_name = 'SiteLongitude',
-                        y_name = 'SiteLatitude',
-                        sp_name = 'TAXONOMIC_NAME', 
-                        coord_ref = '+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs +towgs84=0,0,0 +units=m'
-                        )
-  
-})
+                           # buffer round the absences 
+                            get_buffered_absences(presences = 
+                                              bbs_site_abun %>% 
+                                              filter(TAXONOMIC_NAME == unique(bbs_site_abun$TAXONOMIC_NAME)[x]), 
+                                            sites = bbs_sites, 
+                                            x_name = 'SiteLongitude',
+                                            y_name = 'SiteLatitude',
+                                            sp_name = 'TAXONOMIC_NAME', 
+                                            coord_ref = '+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs +towgs84=0,0,0 +units=m')
+  }
+  )
 
 
-# create fitting and validation sets ----
+# create fitting and validation sets
 
 # I should take 80%/20% of BOTH the abundance and absences (rather than a subsample of the whole dataset)
 set.seed(123)
@@ -288,7 +353,7 @@ bbs_model_data <- lapply(bbs_sum_absences, function(x){
 })
 
 
-# create outputs to save - this is the random validation
+# create outputs to save for the 50 species runs - this is the random validation
 bbs_abun_fitting    <- lapply(bbs_model_data, function(x) x[[1]][[1]])
 bbs_abun_validation <- lapply(bbs_model_data, function(x) x[[1]][[2]])
 bbs_abun_list       <- bbs_model_data
@@ -304,12 +369,12 @@ abundance_key <- left_join(data.frame(TAXONOMIC_NAME  = c(aa_af, ha_hf, ha_lf, l
                                                                                     'l_abun l_freq'))))), 
                            species_properties)
 
-
+dir.create('data/bbs_50_basic/')
 save(bbs_abun, # whole data object as datafrane
      bbs_abun_list, # data object as list
      bbs_abun_fitting, # listed fitting data
      bbs_abun_validation, # list validation data
-     abundance_key, file = 'data/bbs_abun_modelling_data.RData')
+     abundance_key, file = 'data/bbs_50_basic/bbs_abun_modelling_data.RData')
 
 
 # summarise for table ----

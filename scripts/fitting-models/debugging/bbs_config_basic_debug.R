@@ -5,10 +5,14 @@
 lib_vect <- c('tidyverse')
 sapply(lib_vect,require,character=TRUE)
 
-# get trailing arguments
-args = commandArgs(trailingOnly=TRUE)
-i <- as.numeric(args[1]) 
-print(i)
+
+# find the species that are missing from suitability
+
+suitability <- list.files('/Volumes/Simulation/conor/abundance-comparison/results/bbs_basic/suitability')
+
+missing <- which(!grepl(gsub('.RData','',paste(suitability, collapse = '|')), abundance_key$TAXONOMIC_NAME))
+
+i = missing[1]
 
 # load in data ----
 
@@ -35,7 +39,7 @@ covariates = bbs_xy[c('SiteLongitude',
 n_boots = 10
 
 # set up dataset save and base-directory for file saves
-dataset = 'bbs'
+dataset  = 'bbs'
 base_dir = 'results/bbs_basic'
 
 source('scripts/fitting-models/fit-models/fit_all_models.R')
