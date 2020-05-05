@@ -80,10 +80,10 @@ rls_sum <- rls_raw %>%
   nest() %>% 
   mutate(Num_sum = purrr::map(data, ~round(sum(.$Num, na.rm = T))), 
          Biomass_sum = purrr::map(data, ~sum(.$Biomass, na.rm = T))) %>% 
-  unnest(Num_sum, Biomass_sum) %>% 
+  unnest(c(Num_sum, Biomass_sum)) %>% 
   unnest(data) %>% 
   select(-Num, -Biomass, -Sizeclass) %>% 
-  rename(Num = Num_sum, Biomass = Biomass_sum) %>% 
+  dplyr::rename(Num = Num_sum, Biomass = Biomass_sum) %>% 
   unique() %>% 
 
   # average abundance and biomass over surveys i.e., gets rid of yearly variation
@@ -91,10 +91,10 @@ rls_sum <- rls_raw %>%
   nest() %>% 
   mutate(Num_mean = purrr::map(data, ~round(mean(.$Num, na.rm = T))), 
          Biomass_mean = purrr::map(data, ~mean(.$Biomass, na.rm = T))) %>% 
-  unnest(Num_mean, Biomass_mean) %>% 
+  unnest(c(Num_mean, Biomass_mean)) %>% 
   unnest(data) %>% 
   select(-Num, -Biomass, -SurveyID) %>% 
-  rename(Num = Num_mean, Biomass = Biomass_mean) %>% 
+  dplyr::rename(Num = Num_mean, Biomass = Biomass_mean) %>% 
   unique()
 
 # calculate number of species available for analysis 
@@ -108,6 +108,9 @@ species_50 <- rls_sum %>%
   unnest(n_per_species) %>% 
   filter(n_per_species > 50) %>% 
   .$TAXONOMIC_NAME
+
+# filter species to only those with 50 records
+rls_sum <- rls_sum %>% filter(TAXONOMIC_NAME %in% species_50)
 
 # estimating properties of species abundances ----
 
@@ -190,6 +193,65 @@ species_properties %>% filter(mean_abundance_perc > 0.4, mean_abundance_perc < 0
 # filter to species that we are interested in (defined above)
 rls_sum <- rls_sum %>% filter(TAXONOMIC_NAME %in% c(aa_af, ha_hf, ha_lf, la_hf, la_lf))
 
+# ALL SPECIES create species-specific datasets including 0s from an object with all available sites ----
+
+source('scripts/data-processing/functions/get_buffered_absences.R')
+
+# obtain object with all sites 
+rls_sites <- rls_meta %>% select(SiteCode, SiteLatitude, SiteLongitude) %>% unique()
+
+# obtain only numerical abundance from our focal species
+rls_site_abun <- rls_sum %>% select(SiteCode, SiteLatitude, SiteLongitude, TAXONOMIC_NAME, Num) %>% ungroup()
+
+# create a list object that contains absences and presences
+rls_sum_absences <- lapply(1:length(unique(rls_site_abun$TAXONOMIC_NAME)), FUN = function(x){
+  
+  print(x)
+  
+  input <- rls_site_abun %>% 
+    ungroup() %>% 
+    dplyr::filter(TAXONOMIC_NAME == unique(rls_site_abun$TAXONOMIC_NAME)[x])
+  
+  # buffer round the absences 
+  buffered_absence <- get_buffered_absences(presences = input, 
+                                            sites = rls_sites, 
+                                            x_name = 'SiteLongitude',
+                                            y_name = 'SiteLatitude',
+                                            sp_name = 'TAXONOMIC_NAME')
+  
+  # I should take 80%/20% of BOTH the abundance and absences (rather than a subsample of the whole dataset)
+  all_absences  <- buffered_absence %>% filter(Num == 0)  # absences
+  all_presences <- buffered_absence %>% filter(Num != 0)  # presences
+  absences_sample_fitting  <- sample(1:nrow(all_absences), round(nrow(all_absences)*0.8), replace = F)
+  presences_sample_fitting <- sample(1:nrow(all_presences), round(nrow(all_presences)*0.8), replace = F)
+  absences_sample_validation <- setdiff(1:nrow(all_absences), absences_sample_fitting)
+  presence_sample_validation <- setdiff(1:nrow(all_presences), absences_sample_fitting)
+  
+  all_absences[absences_sample_fitting,]     # absences - fitting
+  all_presences[presences_sample_fitting,]   # presences - fitting
+  all_absences[absences_sample_validation,]  # absences - validation
+  all_presences[presence_sample_validation,] # presences - validation
+  
+  fitting    <- rbind(all_absences[absences_sample_fitting,],    all_presences[presences_sample_fitting,])
+  validation <- rbind(all_absences[absences_sample_validation,], all_presences[presence_sample_validation,])
+  
+  fitting$set    <- 'fitting'
+  validation$set <- 'validation'
+  
+  list_outputs <- list(fitting = fitting, validation = validation)
+  
+  # create output directory
+  dir.create('data/rls_all_basic/')
+  
+  # save RDS
+  saveRDS(list_outputs, paste0('data/rls_all_basic/', 
+                               as.character(gsub(' ','_',unique(buffered_absence$TAXONOMIC_NAME))),
+                               '.RDS'))
+  
+  
+})
+
+
 # create species-specific datasets including 0s from an object with all available sites ----
 
 source('scripts/data-processing/get_buffered_absences.R')
@@ -198,7 +260,9 @@ source('scripts/data-processing/get_buffered_absences.R')
 rls_sites <- rls_meta %>% select(SiteCode, SiteLatitude, SiteLongitude) %>% unique()
 
 # obtain only numerical abundance from our focal species
-rls_site_abun <- rls_sum %>% select(SiteCode, SiteLatitude, SiteLongitude, TAXONOMIC_NAME, Num)
+rls_site_abun <- rls_sum %>% select(SiteCode, SiteLatitude, SiteLongitude, TAXONOMIC_NAME, Num) %>% 
+  ungroup() %>% 
+  filter(TAXONOMIC_NAME %in% c(aa_af, ha_hf, ha_lf, la_hf, la_lf))
 
 # create a list object that contains absences and presences
 rls_sum_absences <- lapply(1:length(unique(rls_site_abun$TAXONOMIC_NAME)), FUN = function(x){
@@ -241,7 +305,7 @@ rls_model_data <- lapply(rls_sum_absences, function(x){
   validation$set <- 'validation'
   
   list_outputs <- list(list(fitting = fitting, validation = validation))
-  names(list_outputs) <- unique(rls_sum_absences[[x]]$TAXONOMIC_NAME)
+  names(list_outputs) <- unique(x$TAXONOMIC_NAME)
   
   return(list_outputs)
   
@@ -269,11 +333,12 @@ abundance_key <- left_join(data.frame(TAXONOMIC_NAME  = c(aa_af, ha_hf, ha_lf, l
                                                          'l_abun l_freq'))))), 
            species_properties)
 
+dir.create('data/rls_50_basic/')
 save(rls_abun, # whole data object as datafrane
      rls_abun_list, # data object as list
      rls_abun_fitting, # listed fitting data
      rls_abun_validation, # list validation data
-     abundance_key, file = 'data/rls_abun_modelling_data_v2.RData')
+     abundance_key, file = 'data/rls_50_basic/rls_abun_modelling_data.RData')
 
 # summarise for table ----
 abundance_key %>% 
@@ -283,6 +348,16 @@ abundance_key %>%
             mean_abundance = mean(.$mean_abundance),
             sd_abundance   = sd(.$mean_abundance)) %>% 
   unnest()
+
+
+#  abundance_class mean_frequency sd_frequency mean_abundance sd_abundance
+#  <fct>                    <dbl>        <dbl>          <dbl>        <dbl>
+#  1 average                  0.239       0.0194          11.2         2.79 
+#  2 h_abun h_freq            0.379       0.0364          74.6        12.4  
+#  3 h_abun l_freq            0.143       0.0150          37.7        14.9  
+#  4 l_abun h_freq            0.364       0.0267           4.18        0.378
+#  5 l_abun l_freq            0.135       0.0195           3.77        0.253
+
 
 left_join(rls_abun, abundance_key) %>% 
   group_by(TAXONOMIC_NAME) %>% 

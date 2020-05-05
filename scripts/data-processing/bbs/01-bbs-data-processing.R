@@ -127,6 +127,9 @@ species_50 <- bbs_filter_2 %>%
   filter(n_per_species > 50) %>% 
   .$TAXONOMIC_NAME
 
+# filter species to only those with 50 records
+bbs_filter_2 <- bbs_filter_2 %>% filter(TAXONOMIC_NAME %in% species_50)
+
 # filter by the specific species I want to investigate ----
 
 # spread data for estimating frequency 
@@ -238,7 +241,7 @@ bbs_sites <- bbs_filter_2 %>% select(SiteCode, Latitude, Longitude) %>% unique()
 bbs_site_abun <- bbs_filter_2 %>% select(SiteCode, Latitude, Longitude, TAXONOMIC_NAME, Num)
 
 # change names to match across datasets
-bbs_site_abun <- bbs_site_abun %>% dplyr::rename(SiteLatitude = Latitude, SiteLongitude = Longitude)
+bbs_site_abun <- bbs_site_abun %>% dplyr::rename(SiteLatitude = Latitude, SiteLongitude = Longitude) %>% ungroup()
 
 # create a list object that contains absences and presences
 bbs_sum_absences <- lapply(1:length(unique(bbs_site_abun$TAXONOMIC_NAME)), FUN = function(x){
