@@ -36,12 +36,22 @@ sapply(lib_vect,require,character=TRUE)
 # load in rls sites for matching ----
 
 # projection
+
 Proj <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"
 
-# load data
-load(file = 'data/rls_abun_modelling_data_v2.RData')
-rls_xy     <- data.frame(SiteLongitude = rls_abun$SiteLongitude, SiteLatitude = rls_abun$SiteLatitude) %>% unique()
-rls_points <- SpatialPoints(cbind(rls_abun$SiteLongitude, rls_abun$SiteLatitude) %>% unique(), proj4string = crs(Proj))
+# load data into xy coords
+
+rls_xy <- do.call(rbind, lapply(list.files('data/rls_all_basic', full.names = T), function(x){
+  # read in all the individual files
+  ddata <- readRDS(x)
+  ddata_all <- do.call(rbind, ddata)
+  data.frame(SiteLongitude = ddata_all$SiteLongitude, SiteLatitude = ddata_all$SiteLatitude) %>% 
+    unique()})) %>% 
+  unique()
+
+# convert to points
+
+rls_points <- SpatialPoints(rls_xy, proj4string = crs(Proj))
 
 # load in and standardise environmental layers ----
 
@@ -159,9 +169,7 @@ ggplot(Loadings) +
   ylab('Loading weight') + xlab(NULL) 
 dev.off()
 
-slplot(resRobSvd, scoresLoadings = c(T,T))
 biplot(resRobSvd)
-plotPcs(resRobSvd)
 
 # get values to model with
 rf_covs_ext$robPCA_1 <- as.numeric(resRobSvd@scores[,1])
@@ -285,7 +293,7 @@ save(rls_xy, file = 'data/rls_covariates.RData')
 rls_aus_grid <- raster('data/rls-aus-grid.nc')
 
 # load in function
-source('scripts/data-processing/standardize_raster.R')
+source('scripts/data-processing/functions/standardize_raster.R')
 
 # create raster list
 rls_rasters <- c(as.list(rf_covs), 
@@ -316,7 +324,7 @@ names(rls_standardized) <- raster_names
 
 dir.create('data/rls_rasters/')
 for(i in 1:nlayers(rls_standardized)){
-  
+  print(i)
   writeRaster(rls_standardized[[i]],
               paste0('data/rls_rasters/', names(rls_standardized)[i], '.grd'),
               bylayer = T,

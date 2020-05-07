@@ -63,6 +63,7 @@ rls_raw %>%
   do(n_latlong = length(unique(paste0(.$SiteLatitude, .$SiteLongitude))), 
      n_depth   = length(unique(.$Depth))) %>% 
   unnest() %>% 
+  ungroup() %>% 
   .[,2:3] %>% 
   lapply(., range)
 
@@ -80,6 +81,7 @@ rls_sum <- rls_raw %>%
   nest() %>% 
   mutate(Num_sum = purrr::map(data, ~round(sum(.$Num, na.rm = T))), 
          Biomass_sum = purrr::map(data, ~sum(.$Biomass, na.rm = T))) %>% 
+  ungroup() %>% 
   unnest(c(Num_sum, Biomass_sum)) %>% 
   unnest(data) %>% 
   select(-Num, -Biomass, -Sizeclass) %>% 
@@ -97,6 +99,8 @@ rls_sum <- rls_raw %>%
   dplyr::rename(Num = Num_mean, Biomass = Biomass_mean) %>% 
   unique()
 
+saveRDS(rls_sum, 'data/scrap_rls_sum_object.rds')
+
 # calculate number of species available for analysis 
 length(unique(rls_sum$TAXONOMIC_NAME))
 
@@ -108,9 +112,6 @@ species_50 <- rls_sum %>%
   unnest(n_per_species) %>% 
   filter(n_per_species > 50) %>% 
   .$TAXONOMIC_NAME
-
-# filter species to only those with 50 records
-rls_sum <- rls_sum %>% filter(TAXONOMIC_NAME %in% species_50)
 
 # estimating properties of species abundances ----
 
@@ -125,15 +126,18 @@ freq <- rls_sum %>%
   group_by(TAXONOMIC_NAME, Ecoregion) %>% 
   nest() %>% 
   mutate(remove_values = purrr::map(data, ~sum(.$Num, na.rm = T))) %>% 
+  ungroup() %>% 
   filter(remove_values != 0) %>% 
   unnest(remove_values) %>% 
   unnest(data) %>% 
   group_by(TAXONOMIC_NAME, Ecoregion) %>% 
   do(frequency = sum(.$Num!=0)/length(.$Num)) %>% 
+  ungroup() %>% 
   unnest(frequency) %>% 
   group_by(TAXONOMIC_NAME) %>% 
   do(frequency = mean(.$frequency, na.rm = T)) %>% 
-  unnest(frequency)
+  unnest(frequency) %>% 
+  ungroup()
 hist(freq$frequency)
 
 # average abundance when present
@@ -147,8 +151,8 @@ hist(log(abun$mean_abundance))
 # combine into single dataframe
 species_properties <- left_join(abun,freq)
 
-# remove species with mean abundance < 3
-species_properties <- species_properties %>% filter(mean_abundance >=3) %>% filter(TAXONOMIC_NAME %in% species_50)
+# remove species with less that 50 records
+species_properties <- species_properties %>% filter(TAXONOMIC_NAME %in% species_50)
 
 # remove unknown species
 species_properties <- species_properties[-which(grepl('spp.', species_properties$TAXONOMIC_NAME, fixed = T)),]
@@ -157,6 +161,10 @@ species_properties <- species_properties[-which(grepl('sp.', species_properties$
 # estimate percentiles and subset
 species_properties$mean_abundance_perc <- ecdf(species_properties$mean_abundance)(species_properties$mean_abundance)
 species_properties$frequency_perc      <- ecdf(species_properties$frequency)(species_properties$frequency)
+
+# save species object
+saveRDS(species_properties, 'data/rls_species_properties.RDS')
+
 
 # high abundance high frequency 
 species_properties %>% 
@@ -191,7 +199,7 @@ species_properties %>% filter(mean_abundance_perc > 0.4, mean_abundance_perc < 0
 
 
 # filter to species that we are interested in (defined above)
-rls_sum <- rls_sum %>% filter(TAXONOMIC_NAME %in% c(aa_af, ha_hf, ha_lf, la_hf, la_lf))
+# rls_sum <- rls_sum %>% filter(TAXONOMIC_NAME %in% c(aa_af, ha_hf, ha_lf, la_hf, la_lf))
 
 # ALL SPECIES create species-specific datasets including 0s from an object with all available sites ----
 
@@ -202,6 +210,9 @@ rls_sites <- rls_meta %>% select(SiteCode, SiteLatitude, SiteLongitude) %>% uniq
 
 # obtain only numerical abundance from our focal species
 rls_site_abun <- rls_sum %>% select(SiteCode, SiteLatitude, SiteLongitude, TAXONOMIC_NAME, Num) %>% ungroup()
+
+# filter to suitable species
+rls_site_abun <- rls_site_abun %>% filter(TAXONOMIC_NAME %in% unique(species_properties$TAXONOMIC_NAME))
 
 # create a list object that contains absences and presences
 rls_sum_absences <- lapply(1:length(unique(rls_site_abun$TAXONOMIC_NAME)), FUN = function(x){

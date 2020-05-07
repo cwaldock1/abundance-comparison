@@ -39,7 +39,7 @@ rf_function_boot <- function(abundance = abundance,
       validation$abundance <- log10(validation$abundance+1)
     }}
   
-  if(discrete == T & is.na(transformation)){stop('bad behaviour - dont use discrete with no transformtion - too many classes')}
+  if(discrete == T & is.na(transformation)){return(print('bad behaviour - dont use discrete with no transformtion - too many classes'))}
   
   # convert to discrete values based on groupings as in Howard, C., Stephens, P. A., Pearce-Higgins, J. W., Gregory, R. D. & Willis, S. G. Improving species distribution models: the value of data on abundance. Methods Ecol. Evol. 5, 506–513 (2014).
   if(discrete == T){
@@ -52,7 +52,9 @@ rf_function_boot <- function(abundance = abundance,
     validation$abundance <- if(n_absences == 0){ceiling(validation$abundance)}else{round(validation$abundance)}     # round logged abundances
     validation$abundance[validation$abundance > 6] <- 6     # truncate abundances
     validation$abundance <- ordered(as.factor(validation$abundance)) # turn into factors for random forests
-    }
+  }
+  
+  if(length(unique(abundance$abundance)) == 1 | length(unique(validation$abundance)) == 1){return(print('bad behaviour - too few classes for discrete transformtion'))}
   
   # rename and get general names for covariates for generalism
   covNames_org <- names(covariates)
@@ -62,7 +64,6 @@ rf_function_boot <- function(abundance = abundance,
   for(i in 1:length(covNames_org)){names(covariates)[2+i] <- paste0('cov', i)}
   covNames_new <- names(covariates) # randomForests take matrix which can be subset with this object 
   covNames_new <- covNames_new[-which(covNames_new %in% c('SiteCode', 'SiteLongitude', 'SiteLatitude'))]
-  
   
   
   

@@ -10,31 +10,10 @@ for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(lib_vect,require,character=TRUE)
 detach("package:raster", unload = TRUE)
 
-# Custom function ---- 
+# Custom functions ---- 
 
-# managing data groupings for plots
-add_family_plot_column <- function(plot_data){
-  
-  # edit transformations
-  plot_data$transformation[is.na(plot_data$transformation)] <- ''
-  plot_data$transformation <- ifelse(plot_data$transformation == '', '', paste0('-', plot_data$transformation))
-  
-  # edit family groups
-  plot_data$family <- recode(plot_data$family, discrete = "multinomial", discrete_multinomial = "multinomial", 
-                             continuous_gaussian = 'gaussian',continuous = 'gaussian', continuous_poisson = 'poisson', 
-                             zip = 'poisson')
-  plot_data$family[is.na(plot_data$family)] <- 'gaussian'
-  
-  # edit zero-inflations
-  plot_data$zi <- ifelse(plot_data$zi, '-ZI', '')
-  plot_data$zi[is.na(plot_data$zi)] <- ''
-  
-  plot_data$family_plot <- paste(plot_data$family, plot_data$zi, plot_data$transformation, sep = '')
-  
-  return(plot_data)
-  
-}
-
+# all functions for evaluating outputs
+source('scripts/evaluating-models/functions/evaluation_functions.R')
 
 # for editing x axis
 theme_remove_x <- function(){theme(axis.text.x = element_blank(),
@@ -43,71 +22,60 @@ theme_remove_x <- function(){theme(axis.text.x = element_blank(),
 
 
 # Load in all data ---- 
-all_files <- list.files('results_hpc', recursive = T, full.names = T) 
-predictions <- list()
-for(i in 1:length(all_files)){
-  load(all_files[i])
-  extracted_predictions$abundance_response <- gsub('predictions_', '', str_split(all_files[i], '/')[[1]][3])
-  predictions[[i]] <- extracted_predictions
-}
-all_files_bind <- do.call(rbind, predictions)
 
+# get folders of interest
+result_folders <- list.dirs('results', recursive = F)
+
+for(folder in 1:length(result_folders)){
+
+# here in the future run iteratively for each folder of interest
+
+all_files <- list.files('results', recursive = T, full.names = T)
+
+# remove suitability files
+
+all_files <- all_files[-grep('suitability', all_files)]
+
+# get folder of interest based on loop
+
+all_files <- all_files[grep(result_folders[folder], all_files)]
+
+# in the future, run this over each modelling subset for scalability
+
+bind_files <- bind_results(all_files)
+
+# Clean data levels ----
+
+# some of the encodings output from the models aren't well match so match values here across modelling frameworks using the clean_levels functions
+
+clean_files <- clean_levels(bind_files)
+
+# Calculate assessment metrics ----
+
+model_assessment <- clean_files %>% 
+  rowwise() %>% 
+  do(metrics = abundance_assessment_metrics(.$verification_observed_mean, 
+                                            .$verification_predict_mean)) %>% 
+  unnest(metrics) %>% 
+  cbind(clean_files[,1:13], .)
+
+dir.create('results/model_assessment/', recursive = T)
+  
+saveRDS(model_assessment, file = paste0('results/model_assessment/', gsub('results/','', result_folders[folder]), '.rds'))
+
+}
+
+#### END OF SCRIPT 
 # Load in fish abundance groups ---- 
 load("data/rls_abun_modelling_data_v2.RData")
+
 abundance_key <- abundance_key %>% rename(., species_name = TAXONOMIC_NAME) %>% as_tibble
 
-# Function for assessment metrics and plots ----
-abundance_assessment_metrics <- function(predictions, observations, locations){
-
-  # observations
-  
-  # Linear model between values
-  lm_test           <- lm(observations ~ predictions)
-  sum_lm            <- summary(lm_test)
-  cor.test_pearson  <- cor.test(observations, predictions, method = 'pearson')
-  cor.test_spearman <- cor.test(observations, predictions, method = 'spearman')
-  
-  # summaries from linear model
-  residual_standard_error <- lm_test$sigma
-  intercept <- coef(lm_test)[1]
-  slope     <- coef(lm_test)[2]
-  
-  # Accuracy (A-overall)
-  # root mean squared error between average predicted abundance 
-  # across all sites and observed abundance at each site
-  Armse <- sqrt(mean((observations - predictions)^2, na.rm = T)) # root mean squared error gives more weight to big deviations
-  Amae  <- mean((observations - predictions), na.rm = T)  # mean absolute error weights all errors the same - if positive the value of observations is > the values of predictions
-  
-  # Discrimination
-  Dintercept <- coef(lm_test)[1]
-  Dslope     <- coef(lm_test)[2]
-  Dpearson   <- cor.test_pearson$estimate
-  Dspearman  <- cor.test_spearman$estimate
-  
-  # Precision
-  Psd         <- sd(predictions) 
-  Pdispersion <- sd(predictions) / sd(observations)
-  Pr2         <- summary(lm_test)$r.squared
-  
-  metric_summary <- data.frame(Armse = Armse, 
-                               Amae  = Amae, 
-                               Dintercept = Dintercept, 
-                               Dslope = Dslope, 
-                               Dpearson = Dpearson, 
-                               Dspearman = Dspearman, 
-                               Psd = Psd, 
-                               Pdispersion = Pdispersion, 
-                               Pr2 = Pr2)
-  
-  return(metric_summary)
-  
-}
-
 # function for seqential plots
-Metrics <- c('Armse', 'Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Psd', 'Pdispersion', 'Pr2')
+metrics <- c('Armse', 'Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Psd', 'Pdispersion', 'Pr2')
 
 # aim, minimum, maximum
-Target  <- list(Armse    = c(0, -10, 10), 
+target  <- list(Armse    = c(0, -10, 10), 
                 Amae     = c(0, -10, 10), 
                 Dintercept  = c(0, -5, 5), 
                 Dslope      = c(1,  0, 2), 
@@ -117,50 +85,11 @@ Target  <- list(Armse    = c(0, -10, 10),
                 Pdispersion = c(1,  0, 2), 
                 Pr2         = c(1,  0, 1))
 
-Levels <- c('glm', 'gam', 'rf', 'gbm')
+levels <- c('glm', 'gam', 'rf', 'gbm')
 
-# Function that  
-write_plots <- function(plot_data, directory){
-  for(j in 1:length(Metrics)){
-    
-    # set up levels
-    if(j == 1){plot_data$fitted_model <- factor(as.factor(plot_data$fitted_model), Levels)}
-    print(j)
-    # set up data for plotting in loop across all metrics
-    metric_plot_data <- plot_data %>% 
-      select(colnames(.)[-which(colnames(.)%in%Metrics)], Metrics[j]) %>% 
-      mutate(Metrics = as.numeric(.[,Metrics[j]][[1]]))
-    
-    t_v <- Target[[j]]
-    
-    metric_plot_data$Metrics[!is.finite(metric_plot_data$Metrics)] <- NA
-    metric_plot_data$Metrics[which(metric_plot_data$Metrics > t_v[3])] <- t_v[3]
-    metric_plot_data$Metrics[which(metric_plot_data$Metrics < t_v[2])] <- t_v[2]
-    metric_plot_data <- na.omit(metric_plot_data)
-    
-    # set lower ylim
-    y_lower <- min(c(min(metric_plot_data$Metrics,na.rm=T), t_v[2]))-0.1
-    y_upper <- max(c(max(metric_plot_data$Metrics,na.rm=T), t_v[3]))+0.1
-    
-    plots <- ggplot(data = metric_plot_data) + 
-      geom_boxplot(aes(x = abundance_class, y = Metrics)) + 
-      geom_hline(aes(yintercept=t_v[1]), col = 'red') + 
-      ylab(Metrics[j]) + 
-      ylim(y_lower, y_upper) + 
-      facet_grid(fitted_model ~ family_plot, scales = 'free', drop = T) + 
-      theme_bw() + 
-      theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.1), 
-            aspect.ratio = 1)
-    
-    dir.create(directory, recursive = T) 
-    pdf(file = paste0(directory, '/', Metrics[j],'.pdf'), width = 14, height = 10)
-    print(plots)
-    dev.off()
-    
-  }
-}
 # Estimate evaluation criteria across all data ----
-final_assessment_data <- all_files_bind %>% 
+
+final_assessment_data <- bind_files %>% 
   # estimate evaluation criteria across all models
   rowwise() %>% 
   do(metrics = abundance_assessment_metrics(.$verification_observed_mean, 
@@ -176,41 +105,6 @@ final_assessment_data <- all_files_bind %>%
   # changes family values to ensure consistency
   add_family_plot_column
 
-# create plot labels ----
-
-unique(final_assessment_data$abundance_response) # 
-unique(final_assessment_data$fitted_model) # 
-unique(final_assessment_data$only_abundance) # 
-unique(final_assessment_data$family) # 
-unique(final_assessment_data$family_plot) # 
-unique(final_assessment_data$transformation) # 
-unique(final_assessment_data$zi) # 
-
-# recode values
-final_assessment_data$abundance_response <- recode(final_assessment_data$abundance_response, 
-                                                   abun = "a", 
-                                                   abunocc_2stage = "a2", 
-                                                   abunocc = "ao")
-
-final_assessment_data$family_plot2 <- recode(final_assessment_data$family_plot, 
-                                             `gaussian-log`      = "g.l", 
-                                             `multinomial-log`   = "mn.l", 
-                                             `gaussian-log10`    = 'g.l10',
-                                             `multinomial-log10` = "mn.l10", 
-                                             poisson  = 'p', 
-                                             nbinom   = 'nb', 
-                                             tweedie  = 'tw', 
-                                             gaussian = 'g', 
-                                             `poisson-ZI` = 'p.zi', 
-                                             `nbinom-ZI`  = 'nb.zi', 
-                                             `tweedie-ZI` = 'tw.zi')
-
-final_assessment_data$plot_levels <- paste(final_assessment_data$fitted_model, 
-      final_assessment_data$abundance_response, 
-      final_assessment_data$family_plot2, sep = '.')
-
-
-                           
 
 # PLOT: assessment metric ordered by median values  ----
 

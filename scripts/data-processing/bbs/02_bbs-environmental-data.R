@@ -31,6 +31,7 @@ BiocManager::install("pcaMethods")}
 
 # load/install other packages for script
 lib_vect <- c('tidyverse', 'rgdal', 'raster', 'maptools', 'summarytools', 'pcaMethods', 'gstat', 'rnaturalearth')
+#lib_vect <- c('tidyverse', 'rgdal', 'raster', 'maptools', 'summarytools', 'pcaMethods', 'gstat')
 install.lib<-lib_vect[!lib_vect %in% installed.packages()]
 for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(lib_vect,require,character=TRUE)
@@ -42,9 +43,17 @@ Proj <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"
 Proj_bbs <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs +towgs84=0,0,0 +units=m"
 
 # load data
-load(file = 'data/bbs_abun_modelling_data.RData')
-bbs_xy     <- data.frame(SiteLongitude = bbs_abun$SiteLongitude, SiteLatitude = bbs_abun$SiteLatitude) %>% unique()
-bbs_points <- SpatialPoints(cbind(bbs_abun$SiteLongitude, bbs_abun$SiteLatitude) %>% unique(), proj4string = crs(Proj))
+bbs_xy <- do.call(rbind, lapply(list.files('data/bbs_all_basic', full.names = T), function(x){
+  # read in all the individual files
+  ddata <- readRDS(x)
+  ddata_all <- do.call(rbind, ddata)
+  data.frame(SiteLongitude = ddata_all$SiteLongitude, SiteLatitude = ddata_all$SiteLatitude) %>% 
+    unique()})) %>% 
+  unique()
+
+# convert to points
+
+bbs_points <- SpatialPoints(bbs_xy, proj4string = crs(Proj))
 
 # load in and standardise environmental layers ----
 
@@ -154,7 +163,7 @@ ggplot(Loadings) +
   ylab('Loading weight') + xlab(NULL) 
 dev.off()
 
-slplot(resRobSvd, scoresLoadings = c(T,T))
+#slplot(resRobSvd, scoresLoadings = c(T,T))
 biplot(resRobSvd)
 #plotPcs(resRobSvd)
 
@@ -196,7 +205,6 @@ table(is.na(human_pop_ext))
 
 # bind to rls_xy object
 bbs_xy <- cbind(bbs_xy, human_pop_ext)
-
 
 # primary forest data ----
 
@@ -244,19 +252,27 @@ save(bbs_xy, file = 'data/bbs_covariates.RData')
 
 usa_polygon <- Rgshhs("/Volumes/RF-env-data/reef-futures/env-data/gshhg-bin-2/gshhs_i.b", 
                       xlim = extent(bbs_points)[1:2]+360,
-                      ylim = extent(bbs_points)[3:4], 
+                      ylim = extent(bbs_points)[3:4]+c(-10, 10), 
                       level = 2, 
-                      minarea = 1000, 
+                      minarea = 10000, 
                       shift = T, 
                       verbose = TRUE, 
-                      no.clip = FALSE, 
-                      properly=T, 
-                      avoidGEOS=FALSE, 
+                      no.clip = F, 
+                      properly = F, 
+                      avoidGEOS=F, 
                       checkPolygons=T)
+
+gClip <- function(shp, bb){
+  if(class(bb) == "matrix") b_poly <- as(extent(as.vector(t(bb))), "SpatialPolygons")
+  else b_poly <- as(extent(bb), "SpatialPolygons")
+  rgeos::gIntersection(shp, b_poly, byid = TRUE)
+}
+
+usa_polygon <- gClip(usa_polygon$SP, bbox(bbs_points))
 
 # plot as a test of resolution and minimum area
 
-plot(usa_polygon$SP)
+plot(usa_polygon)
 
 # manually select dimensions of human pop as base raster to resample to at a 0.08° scale
 
@@ -267,7 +283,7 @@ plot(base_raster)
 
 # rasterize the polygons of usa
 
-base_raster <- rasterize(usa_polygon$SP, base_raster, field = 1)
+base_raster <- rasterize(usa_polygon, base_raster, field = 1)
 
 points(bbs_points)
 
@@ -277,7 +293,7 @@ targetRaster <- human_pop
 # load in function
 source('scripts/data-processing/functions/standardize_raster.R')
 
-standardize_raster(base_raster, human_pop)
+plot(standardize_raster(base_raster, human_pop))
 
 # list all the layers to standardize
 

@@ -46,6 +46,9 @@ occupancy_ensemble <- function(abundance = abundance,
   names(val_occurrence)[3] <- 'occurrence'
   val_occurrence$occurrence[which(val_occurrence$occurrence >=1)] <- 1
   
+  # check for constant values
+  if(length(unique(occurrence$occurrence)) == 1 | length(unique(val_occurrence$occurrence)) == 1){return(print('bad behaviour - too few classes for discrete transformtion'))}
+  
   # response variable name
   response <- 'occurrence~'
   

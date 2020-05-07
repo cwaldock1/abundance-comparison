@@ -63,7 +63,8 @@ brt_function_boot <- function(abundance = abundance,
     validation$abundance <- ordered(as.factor(validation$abundance)) # turn into factors for random forests
   }
   
-  if(discrete == T & is.na(transformation)){stop('bad behaviour - dont use discrete with no transformtion - too many classes')}
+  if(discrete == T & is.na(transformation)){return(print('bad behaviour - dont use discrete with no transformtion - too many classes'))}
+  if(length(unique(abundance$abundance)) == 1 | length(unique(validation$abundance)) == 1){return(print('bad behaviour - too few classes for discrete transformtion'))}
   
   # rename and get general names for covariates for generalism
   covNames_org <- names(covariates)

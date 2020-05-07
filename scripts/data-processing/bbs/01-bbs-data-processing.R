@@ -186,8 +186,8 @@ hist(log(bbs_abun$mean_abundance))
 # combine into single dataframe
 species_properties <- left_join(bbs_abun, bbs_freq2)
 
-# remove species with mean abundance < 3
-species_properties <- species_properties %>% filter(mean_abundance >=3) %>% filter(TAXONOMIC_NAME %in% species_50)
+# remove species with less that 50 records
+species_properties <- species_properties %>% filter(TAXONOMIC_NAME %in% species_50)
 
 # estimate percentiles and subset
 species_properties$mean_abundance_perc <- ecdf(species_properties$mean_abundance)(species_properties$mean_abundance)
@@ -228,20 +228,23 @@ species_properties %>% filter(mean_abundance_perc > 0.4, mean_abundance_perc < 0
   .$TAXONOMIC_NAME %>% as.character %>% .[1:10] -> aa_af
 
 
-# # filter to species that we are interested in (defined above)
-
 # ALL SPECIES create species-specific datasets including 0s from an object with all available sites ----
 
 source('scripts/data-processing/functions/get_buffered_absences.R')
 
 # obtain object with all sites 
-bbs_sites <- bbs_filter_2 %>% select(SiteCode, Latitude, Longitude) %>% unique()  %>% dplyr::rename(SiteLatitude = Latitude, SiteLongitude = Longitude)
+bbs_sites <- bbs_filter_2 %>% 
+  select(SiteCode, Latitude, Longitude) %>% unique() %>% 
+  dplyr::rename(SiteLatitude = Latitude, SiteLongitude = Longitude)
 
 # obtain only numerical abundance from our focal species
 bbs_site_abun <- bbs_filter_2 %>% select(SiteCode, Latitude, Longitude, TAXONOMIC_NAME, Num)
 
 # change names to match across datasets
-bbs_site_abun <- bbs_site_abun %>% dplyr::rename(SiteLatitude = Latitude, SiteLongitude = Longitude) %>% ungroup()
+bbs_site_abun <- bbs_site_abun %>% 
+  dplyr::rename(SiteLatitude = Latitude, SiteLongitude = Longitude) %>% 
+  ungroup() %>% 
+  filter(TAXONOMIC_NAME %in% unique(species_properties$TAXONOMIC_NAME))
 
 # create a list object that contains absences and presences
 bbs_sum_absences <- lapply(1:length(unique(bbs_site_abun$TAXONOMIC_NAME)), FUN = function(x){
@@ -391,13 +394,13 @@ abundance_key %>%
      sd_abundance   = sd(.$mean_abundance)) %>% 
   unnest()
 
-#   abundance_class mean_frequency sd_frequency mean_abundance sd_abundance
+# abundance_class mean_frequency sd_frequency mean_abundance sd_abundance
 # <fct>                    <dbl>        <dbl>          <dbl>        <dbl>
-# 1 average                 0.0795      0.00443           7.90       0.326 
-# 2 h_abun h_freq           0.145       0.0327           17.8        1.41  
-# 3 h_abun l_freq           0.0557      0.00538          18.4        2.19  
-# 4 l_abun h_freq           0.160       0.0237            4.01       0.192 
-# 5 l_abun l_freq           0.0468      0.00690           3.57       0.0881
+# 1 average                 0.0771      0.00680           6.43       0.174 
+# 2 h_abun h_freq           0.124       0.0108           16.5        1.24  
+# 3 h_abun l_freq           0.0483      0.00562          15.6        1.73  
+# 4 l_abun h_freq           0.137       0.0125            2.01       0.114 
+# 5 l_abun l_freq           0.0459      0.00672           1.61       0.0287
 
 
 left_join(bbs_abun %>% mutate(TAXONOMIC_NAME = as.character(.$TAXONOMIC_NAME)), abundance_key %>% mutate(TAXONOMIC_NAME = as.character(.$TAXONOMIC_NAME))) %>% 

@@ -45,6 +45,8 @@ glm_function_boot <- function(abundance = abundance,
     validation$abundance <- log10(validation$abundance+1)
   }}
 
+  if(length(unique(abundance$abundance)) == 1 | length(unique(validation$abundance)) == 1){return(print('bad behaviour - too few classes for discrete transformtion'))}
+  
   # response variable name
   response <- 'abundance~'
   

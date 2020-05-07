@@ -908,7 +908,7 @@ rf_function_boot(abundance = abundance_input,
 
 
 
-# RUNNING BOOSTED REGRESSION TREES AT END BECUASE ERROR PRONE ---- 
+# RUNNING BOOSTED REGRESSION TREES AT END BECUASE MORE ERROR PRONE ---- 
 # run boosted regression trees options - ABUNDANCE_OCCURRENCE ----
 
 # source function
