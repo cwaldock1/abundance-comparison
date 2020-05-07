@@ -24,13 +24,13 @@ theme_remove_x <- function(){theme(axis.text.x = element_blank(),
 # Load in all data ---- 
 
 # get folders of interest
-result_folders <- list.dirs('results', recursive = F)
+result_folders <- list.dirs('results/predictions', recursive = F)
 
 for(folder in 1:length(result_folders)){
 
 # here in the future run iteratively for each folder of interest
 
-all_files <- list.files('results', recursive = T, full.names = T)
+all_files <- list.files('results/predictions', recursive = T, full.names = T)
 
 # remove suitability files
 
@@ -57,15 +57,24 @@ model_assessment <- clean_files %>%
   do(metrics = abundance_assessment_metrics(.$verification_observed_mean, 
                                             .$verification_predict_mean)) %>% 
   unnest(metrics) %>% 
-  cbind(clean_files[,1:13], .)
+  bind_cols(clean_files[,1:13], .) %>% 
+  mutate(cross_validation = gsub('results/predictions/','', result_folders[folder]))
+
+# Attached abundance information into metrics ----
+
+model_assessment <- left_join(model_assessment, 
+                              readRDS(paste0('data/', if(model_assessment$dataset == 'bbs'){'bbs_species_properties.RDS'}else{'rls_species_properties.RDS'})) %>% 
+                                rename(., species_name = TAXONOMIC_NAME))
 
 dir.create('results/model_assessment/', recursive = T)
   
-saveRDS(model_assessment, file = paste0('results/model_assessment/', gsub('results/','', result_folders[folder]), '.rds'))
+saveRDS(model_assessment, file = paste0('results/model_assessment/', gsub('results/predictions/','', result_folders[folder]), '.rds'))
 
 }
 
+
 #### END OF SCRIPT 
+
 # Load in fish abundance groups ---- 
 load("data/rls_abun_modelling_data_v2.RData")
 
