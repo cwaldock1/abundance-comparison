@@ -8,7 +8,7 @@ bind_results <- function(file_list){
   predictions <- list()
   for(i in 1:length(file_list)){
     load(file_list[i])
-    extracted_predictions$abundance_response <- gsub('predictions_', '', str_split(file_list[i], '/')[[1]][3])
+    extracted_predictions$abundance_response <- gsub('predictions_', '', str_split(file_list[i], '/')[[1]][length(str_split(file_list[i], '/')[[1]])-1])
     predictions[[i]] <- extracted_predictions
   }
   all_files_bind <- do.call(rbind, predictions)
@@ -101,7 +101,7 @@ abundance_assessment_metrics <- function(predictions, observations, locations){
   # root mean squared error between average predicted abundance 
   # across all sites and observed abundance at each site
   Armse <- sqrt(mean((observations - predictions)^2, na.rm = T)) # root mean squared error gives more weight to big deviations
-  Amae  <- mean((observations - predictions), na.rm = T)  # mean absolute error weights all errors the same - if positive the value of observations is > the values of predictions
+  Amae  <- mean(abs((observations - predictions)), na.rm = T)    # mean absolute error weights all errors the same - if positive the value of observations is > the values of predictions
   
   # Discrimination
   Dintercept <- coef(lm_test)[1]
