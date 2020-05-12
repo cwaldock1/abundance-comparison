@@ -225,7 +225,6 @@ all_model_plots_v2 <- function(plot_data, # object after running abundance_asses
   
 }
 
-
 # function to produce plots with outputs combined across model types ----
 
 combined_assessment_metrics <- function(plot_data, # a wide dataframe of all assessment calculations.
@@ -433,9 +432,7 @@ plot_all_aggregated <- function(plot_data,
                         Psd         = c(0,  0, 10), 
                         Pdispersion = c(1,  0, 2), 
                         Pr2         = c(1,  0, 1)), 
-         levels = c('glm', 'gam', 'gbm', 'rf'), 
-         colours = colorRampPalette(c("#0099CC80","#9ECAE1","#58BC5D","#EEF559","#FF9933","red"), bias = 1)(4)
-         ){
+         levels = c('glm', 'gam', 'gbm', 'rf')){
   
   metric_plot_data <- plot_data %>%     
     gather(., key = metric, value = value,  c(accuracy, discrimination, precision)) %>% 
@@ -476,16 +473,69 @@ dev.off()
 
 }
 
+# function to plot model rank counts ----
 
-
-
-
-
-
-
-
-
-
+rank_plots <- function(plot_data,
+                       directory,
+                       name,
+                       width, 
+                       height,
+                       colours,
+                       metrics = c('Armse', 'Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Psd', 'Pdispersion', 'Pr2'),
+                       targets = list(Armse    = c(0, -10, 10),
+                                      Amae     = c(0, -10, 10), 
+                                      Dintercept  = c(0, -5, 5), 
+                                      Dslope      = c(1,  0, 2), 
+                                      Dpearson    = c(1,  0, 1), 
+                                      Dspearman   = c(1,  0, 1), 
+                                      Psd         = c(0,  0, 10), 
+                                      Pdispersion = c(1,  0, 2), 
+                                      Pr2         = c(1,  0, 1)), 
+                       levels = c('glm', 'gam', 'gbm', 'rf')){
+  
+  # create function to apply
+  get_models <- function(input){
+    
+    value <- ifelse(unique(input$metrics) %in% c('Armse', 'Amae', 'Dintercept', 'Psd', 'Pdispersion'), 
+                        which.min(input$value), 
+                        which.max(input$value))
+    
+    return_model <- input$plot_level[value]
+    
+    return(return_model)
+    
+  }
+  
+  
+  model_count <- plot_data %>% 
+    gather(., key = 'metrics', value = 'value', metrics) %>% 
+    group_by(dataset, cross_validation_2, species_name, metrics) %>%
+    do(best_model = get_models(.)) %>% 
+    unnest(cols = c(best_model))
+  
+  model_count$fitted_model <- sub('\\..*', '', model_count$best_model)
+  model_count$fitted_model <- factor(as.factor(model_count$fitted_model), levels)
+  
+  #detach("package:cowplot", unload = TRUE)
+  plot <- ggplot(data = model_count) + 
+    geom_bar(aes(x=gsub('_','',gsub('.','-',best_model, fixed = T)), fill = fitted_model), col = 'black', lwd = 0.5) + 
+    theme(axis.text.x = element_text(angle = 45, hjust=1), 
+          panel.border = element_rect(linetype = 1), 
+          panel.background = element_rect(fill = 'grey95'), 
+          strip.background = element_blank()) + 
+    facet_grid(metrics~fitted_model, scale = 'free') + 
+    xlab('') + 
+    ylab('model count') + 
+    scale_fill_manual(values = colours, name = '') + 
+    scale_colour_manual(values = colours, name = '')
+  
+  dir.create(directory, recursive = T) 
+  
+  pdf(file = paste0(directory, '/', name,'.pdf'), width = width, height = height)
+  print(plot)
+  dev.off()
+  
+}
 
 
 # function to plot comparison between basic and cross-validations for each metric ---- 

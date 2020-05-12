@@ -82,10 +82,7 @@ lapply(1:nrow(nested_assessments),
                             width = 14)})
 
 
-
-
-
-# full plots but combine across species within metrics types ----
+# plot aggregated models within metrics types ----
 
 nested_assessments <- all_assessments %>% 
   group_by(cross_validation_2) %>% 
@@ -162,6 +159,26 @@ plot_all_aggregated(all_assessments_relative$data[[2]] %>%
                     name = 'cv')
 
 # plots of ranked models ----
+
+nested_assessments <- split(all_assessments, f = all_assessments$cross_validation)
+
+lapply(1:length(nested_assessments), 
+       function(x){
+         rank_plots(plot_data = nested_assessments[[x]], 
+                    levels = levels, 
+                    metrics = metrics,
+                    targets = targets,
+                    colours = colours,
+                    directory  = 'figures/model-performance-figures/rank_plots/', 
+                    name = unique(paste0(nested_assessments[[x]]$dataset, '_', nested_assessments[[x]]$cross_validation_2)), 
+                    width = 12, 
+                    height = 10)})
+
+
+plot_data <- nested_assessments$data[[1]]
+
+
+
 
 
 
