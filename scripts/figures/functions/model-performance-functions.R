@@ -118,6 +118,7 @@ all_model_plots <- function(plot_data, # object after running abundance_assesmen
 all_model_plots_v2 <- function(plot_data, # object after running abundance_assesment_metrics and add_family_plot_column (to be renamed)
                                height = 10, 
                                width = 8,
+                               outlier_quantile = 0.05,
                             metrics = c('Armse', 'Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Psd', 'Pdispersion', 'Pr2'), 
                             targets = list(Armse    = c(0, -10, 10), 
                                            Amae     = c(0, -10, 10), 
@@ -146,13 +147,13 @@ all_model_plots_v2 <- function(plot_data, # object after running abundance_asses
       mutate(metrics = as.numeric(data.frame(plot_data)[,metrics[j]]))
     
     # set boundaries
-    lower = ifelse(metrics[j] %in% c('Dslope'), T, F)
-    upper = ifelse(metrics[j] %in% c('Dpearson', 'Dspearman', 'Pr2', 'Dslope'), F, T)
+    lower = ifelse(metrics[j] %in% c('Dintercept'), T, F)
+    upper = ifelse(metrics[j] %in% c('Dpearson', 'Dspearman', 'Pr2', 'Dintercept'), F, T)
     t_v = targets[j][[1]]
-    decreasing = ifelse(metrics[j] %in% c('Armse', 'Amae', 'Dintercept', 'Psd', 'Pdispersion'), T, F)
+    decreasing = ifelse(metrics[j] %in% c('Armse', 'Amae', 'Dslope', 'Psd', 'Pdispersion'), T, F)
     
     # fix extreme values based on boundaries
-    metric_plot_data$metrics <- fix_outliers(metric_plot_data$metrics, 0.05, lower = lower, upper = upper)
+    metric_plot_data$metrics <- fix_outliers(metric_plot_data$metrics, outlier_quantile, lower = lower, upper = upper)
     
     # calculate median value
     metric_plot_data <- metric_plot_data %>% 

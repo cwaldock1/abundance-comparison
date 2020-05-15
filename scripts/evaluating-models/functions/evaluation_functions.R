@@ -7,6 +7,7 @@ bind_results <- function(file_list){
   
   predictions <- list()
   for(i in 1:length(file_list)){
+    if( i %% 10 == 0 ) cat(paste("iteration", i, "complete\n"))
     load(file_list[i])
     extracted_predictions$abundance_response <- gsub('predictions_', '', str_split(file_list[i], '/')[[1]][length(str_split(file_list[i], '/')[[1]])-1])
     predictions[[i]] <- extracted_predictions
@@ -15,6 +16,27 @@ bind_results <- function(file_list){
   return(all_files_bind)
   
 }
+
+bind_results_save <- function(file_list, directory, name){
+  
+  predictions <- list()
+  for(i in 1:length(file_list)){
+    if( i %% 50 == 0 ) cat(paste("iteration", signif((i/length(file_list))*100, 3), "% complete\n"))
+    load(file_list[i])
+    extracted_predictions$abundance_response <- gsub('predictions_', '', str_split(file_list[i], '/')[[1]][length(str_split(file_list[i], '/')[[1]])-1])
+    predictions[[i]] <- extracted_predictions
+  }
+  
+  all_files_bind <- do.call(rbind, predictions)
+  
+  dir.create(directory, recursive = T)
+  
+  saveRDS(all_files_bind, file = paste0(directory, '/', name, '.rds'))
+  
+  return(all_files_bind)
+  
+}
+
 
 
 # clean data managing data groupings for plots ----
@@ -84,35 +106,46 @@ clean_levels <- function(data_input){
 
 abundance_assessment_metrics <- function(predictions, observations, locations){
   
-  # observations
+  # keep only observations that are abundances in the first input
+  to_keep <- observations>0
+  observations <- observations[to_keep]
+  predictions  <- predictions[to_keep]
   
   # Linear model between values
-  lm_test           <- lm(observations ~ predictions)
-  sum_lm            <- summary(lm_test)
+  lm_test           <- tryCatch(lm(predictions ~ observations), error = function(e) NA)
+  
+  # if the lm test is NA then some metrics cannot be calculated
+  if(!is.na(lm_test)){
+    sum_lm            <- summary(lm_test)
+    coef_lm           <- coef(lm_test)
+    # summaries from linear model
+    residual_standard_error <- lm_test$sigma
+    Dintercept <- coef_lm[1]
+    Dslope     <- coef_lm[2]
+    Pr2         <- sum_lm$r.squared
+  }else{
+    Dintercept <- NA
+    Dslope     <- NA
+    Pr2        <- NA
+  }
   cor.test_pearson  <- cor.test(observations, predictions, method = 'pearson')
   cor.test_spearman <- cor.test(observations, predictions, method = 'spearman')
+  sd_predictions    <- sd(predictions)
   
-  # summaries from linear model
-  residual_standard_error <- lm_test$sigma
-  intercept <- coef(lm_test)[1]
-  slope     <- coef(lm_test)[2]
-  
+
   # Accuracy (A-overall)
   # root mean squared error between average predicted abundance 
   # across all sites and observed abundance at each site
-  Armse <- sqrt(mean((observations - predictions)^2, na.rm = T)) # root mean squared error gives more weight to big deviations
-  Amae  <- mean(abs((observations - predictions)), na.rm = T)    # mean absolute error weights all errors the same - if positive the value of observations is > the values of predictions
+  Armse <- sqrt(mean((predictions - observations)^2, na.rm = T)) # root mean squared error gives more weight to big deviations
+  Amae  <- mean(abs((predictions  - observations)), na.rm = T)    # mean absolute error weights all errors the same - if positive the value of observations is > the values of predictions
   
   # Discrimination
-  Dintercept <- coef(lm_test)[1]
-  Dslope     <- coef(lm_test)[2]
   Dpearson   <- cor.test_pearson$estimate
   Dspearman  <- cor.test_spearman$estimate
   
   # Precision
-  Psd         <- sd(predictions) 
-  Pdispersion <- sd(predictions) / sd(observations)
-  Pr2         <- summary(lm_test)$r.squared
+  Psd         <- sd_predictions
+  Pdispersion <- sd_predictions / sd(observations)
   
   metric_summary <- data.frame(Armse = Armse, 
                                Amae  = Amae, 
@@ -122,7 +155,8 @@ abundance_assessment_metrics <- function(predictions, observations, locations){
                                Dspearman = Dspearman, 
                                Psd = Psd, 
                                Pdispersion = Pdispersion, 
-                               Pr2 = Pr2)
+                               Pr2 = Pr2, 
+                               Evaluation_number = length(observations))
   
   return(metric_summary)
   

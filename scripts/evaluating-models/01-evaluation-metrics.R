@@ -20,17 +20,77 @@ theme_remove_x <- function(){theme(axis.text.x = element_blank(),
                                    axis.title.x = element_blank(), 
                                    plot.margin = unit(c(0,0,0,0), units = 'cm'))}
 
+# Load in all data ---- 
+
+# get folders of interest
+result_folders <- list.files('/Volumes/Simulation/conor/abundance-comparison/results', recursive = F, full.names = T, pattern = '_all')
+
+# get level 2 folders
+results_folders_2 <- sapply(result_folders, function(x){list.files(x, pattern = 'predictions_', full.names = T)})
+
+
+
+for(folder in 1:length(results_folders_2)){
+  
+  print(folder)
+  
+  # here in the future run iteratively for each folder of interest
+  predictions_folder_files <- lapply(results_folders_2[,folder], function(x){print(x); list.files(x, full.names = T)})
+  
+  # in the future, run this over each modelling subset for scalability
+  
+  bind_files <- lapply(predictions_folder_files, function(x){
+    #x <- x[sample(1:length(x), 1000)] # remove for run across all species
+    bind_results_save(x,
+                      directory = 'results/predictions_all/bind/', 
+                      name = paste0(strsplit(x, '/')[[1]][7], '_',strsplit(x, '/')[[1]][8]))})
+  
+  # Clean data levels ----
+  
+  # some of the encodings output from the models aren't well match so match values here across modelling frameworks using the clean_levels functions
+  
+  clean_files <- lapply(bind_files, clean_levels)
+  # clean_files <- clean_levels(bind_files) # old version
+  
+  clean_files <- rbind_all(clean_files)
+  
+  # Calculate assessment metrics ----
+  
+  test_dt <- data.table::data.table(clean_files)
+
+  model_assessment <- clean_files %>% 
+    rowwise() %>% 
+    do(metrics = abundance_assessment_metrics(predictions   = .$validation_predict_mean, 
+                                              observations  = .$validation_observed_mean)) %>% 
+    unnest(metrics) %>% 
+    bind_cols(clean_files[,1:13], .) %>% 
+    mutate(cross_validation = gsub('results/predictions/','', result_folders[folder]))
+  
+  # Attached abundance information into metrics ----
+  
+  model_assessment <- left_join(model_assessment, 
+                                readRDS(paste0('data/', if(model_assessment$dataset == 'bbs'){'bbs_species_properties.RDS'}else{'rls_species_properties.RDS'})) %>% 
+                                  rename(., species_name = TAXONOMIC_NAME))
+  
+  dir.create('results/model_assessment_all/', recursive = T)
+  
+  saveRDS(model_assessment, file = paste0('results/model_assessment_all/', strsplit(model_assessment$cross_validation, '/')[[1]][3], '.rds'))
+  
+}
+
+
+#### END OF SCRIPT 
 
 # Load in all data ---- 
 
 # get folders of interest
-result_folders <- list.dirs('results/predictions', recursive = F)
+result_folders <- list.dirs('results/predictions_50', recursive = F)
 
 for(folder in 1:length(result_folders)){
 
 # here in the future run iteratively for each folder of interest
 
-all_files <- list.files('results/predictions', recursive = T, full.names = T)
+all_files <- list.files('results/predictions_50', recursive = T, full.names = T)
 
 # remove suitability files
 
@@ -58,7 +118,7 @@ model_assessment <- clean_files %>%
                                             .$verification_predict_mean)) %>% 
   unnest(metrics) %>% 
   bind_cols(clean_files[,1:13], .) %>% 
-  mutate(cross_validation = gsub('results/predictions/','', result_folders[folder]))
+  mutate(cross_validation = gsub('results/predictions_50/','', result_folders[folder]))
 
 # Attached abundance information into metrics ----
 
@@ -68,7 +128,7 @@ model_assessment <- left_join(model_assessment,
 
 dir.create('results/model_assessment/', recursive = T)
   
-saveRDS(model_assessment, file = paste0('results/model_assessment/', gsub('results/predictions/','', result_folders[folder]), '.rds'))
+saveRDS(model_assessment, file = paste0('results/model_assessment/', gsub('results/predictions_50/','', result_folders[folder]), '.rds'))
 
 }
 

@@ -254,12 +254,16 @@ occupancy_ensemble <- function(abundance = abundance,
   
   # create average over boots for validation dataset
   val_suitability_ensemble <- as_tibble(data.frame(validation[c('SiteLongitude', 'SiteLatitude')], 
-            suitability_ensemble = rowMeans(simplify2array(validation_ensemble))))
+                                                   suitability_ensemble = rowMeans(simplify2array(validation_ensemble))))
   
   # output the two suitability estimates
   # this is not circular because any sites that are contined in the validation dataset were not used to build the
   # initial models 
-  suitability_ensemble <- rbind(ver_suitability_ensemble, val_suitability_ensemble)
+  suitability_ensemble <- rbind(ver_suitability_ensemble, val_suitability_ensemble) %>% 
+    group_by(SiteLatitude, SiteLongitude) %>% 
+    do(suitability_ensemble = mean(.$suitability_ensemble, na.rm=T)) %>% 
+    unnest(c('suitability_ensemble'))
+  
   # end of bootstrap
   return(suitability_ensemble)
       

@@ -76,6 +76,7 @@ nested_assessments <- all_assessments %>%
 lapply(1:nrow(nested_assessments), 
        function(x){
          all_model_plots_v2(plot_data = nested_assessments$data[[x]], 
+                            outlier_quantile = 0.05,
                             directory = paste0('figures/model-performance-figures/all_model_all_metric_combined/'), 
                             name =  paste0(nested_assessments$dataset[x], '_', nested_assessments$cross_validation_2[x]), 
                             height = 14, 
@@ -174,12 +175,7 @@ lapply(1:length(nested_assessments),
                     width = 12, 
                     height = 10)})
 
-
 plot_data <- nested_assessments$data[[1]]
-
-
-
-
 
 
 # plots of rescaled values comparing between cross-validation scenarios ----
