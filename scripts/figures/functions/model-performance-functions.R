@@ -362,55 +362,87 @@ aggregate_metrics <- function(plot_data,
          levels = c('glm', 'gam', 'gbm', 'rf')
          ){
   
-  require(pcaMethods)
+  # get metrics
+  metrics_data <- plot_data[metrics]
   
-  # check relationships between metric groupings
-  Accuracy  <- plot_data[c('Armse', 'Amae')]
-  Discrim   <- plot_data[c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman')]
-  Precision <- plot_data[c('Psd', 'Pdispersion', 'Pr2')]
+  # match targets to boundarise to express as abosulute difference from 0 (where 0 is perfect)
+  metrics_data[,which(names(metrics_data) %in% c('Dslope', 'Pdispersion'))] <- abs(metrics_data[,which(names(metrics_data) %in% c('Dslope', 'Pdispersion'))] - 1)
+  metrics_data[,which(names(metrics_data) %in% c('Dintercept'))] <- abs(metrics_data[,which(names(metrics_data) %in% c('Dintercept'))])
   
-  Accuracy_1 <- data.frame(sapply(Accuracy,  fix_outliers))
-  #pairs(Accuracy_1)
-  Discrim_1 <- data.frame(sapply(Discrim,  fix_outliers))
-  #pairs(Discrim_1)
-  Precision_1 <- data.frame(sapply(Precision, function(x) fix_outliers(x, 0.025)))
-  #pairs(Precision_1)
-  
-  # rescale values
+  # rank order and rescale
   rescale_01 <- function(x){(x-min(x,na.rm = T))/(max(x, na.rm = T)-min(x, na.rm = T))}
-  Accuracy_2 <- data.frame(sapply(Accuracy_1, rescale_01))
-  #pairs(Accuracy_2)
-  Discrim_1$Dslope <- 1-Discrim_1$Dslope # target is 1 without boundary
-  Discrim_2 <- data.frame(sapply(Discrim_1, rescale_01))
-  #pairs(Discrim_2)
-  Precision_1$Pdispersion <- 1-Precision_1$Pdispersion # target is 1 without boundary
-  Precision_2 <- data.frame(sapply(Precision_1, rescale_01))
-  #pairs(Precision_2)
-
-  # invert range where necessary so that high numbers is always good
-  invert_range <- function(x){( max(x, na.rm = T) + min(x, na.rm = T) ) - x}
+  metrics_data <- data.frame(sapply(metrics_data, function(x) rescale_01(rank(x))))
   
-  Accuracy_2$Armse <- invert_range(Accuracy_2$Armse)
-  Accuracy_2$Amae <- invert_range(Accuracy_2$Amae)
+  # range inversion
+  invert_range <- function(x){(max(x, na.rm = T) + min(x, na.rm = T) ) - x}
+  metrics_data[which(names(metrics_data) %in% c('Armse', 'Amae', 'Dintercept', 'Dslope', 'Psd', 'Pdispersion'))] <- 
+    sapply(metrics_data[which(names(metrics_data) %in% c('Armse', 'Amae', 'Dintercept', 'Dslope', 'Psd', 'Pdispersion'))], function(x) invert_range(x))
   
-  Discrim_2$Dintercept <- invert_range(Discrim_2$Dintercept)
-  Discrim_2$Dslope <- invert_range(Discrim_2$Dslope)
-
-  Precision_2$Psd <- invert_range(Precision_2$Psd)
-  Precision_2$Pdispersion <- invert_range(Precision_2$Pdispersion)
+  # create columns for plotting
+  if(length(which(names(metrics_data) %in% c('Armse', 'Amae'))) == 1){plot_data$accuracy <- metrics_data[,which(names(metrics_data) %in% c('Armse', 'Amae'))]}else{
+    plot_data$accuracy <- rowSums(metrics_data[,which(names(metrics_data) %in% c('Armse', 'Amae'))])/ncol(metrics_data)}
   
-  # aggregate over metric types 
-  accuracy_metrics = names(Accuracy_2)
-  discrimination_metrics = names(Discrim_2)
-  precision_metrics = names(Precision_2)
+  if(length(which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))) == 1){plot_data$discrimination <- metrics_data[,which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))]}else{
+    plot_data$discrimination <- rowSums(metrics_data[,which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))])/ncol(metrics_data)}
   
-  plot_data[accuracy_metrics] <- Accuracy_2
-  plot_data[discrimination_metrics] <- Discrim_2
-  plot_data[precision_metrics] <- Precision_2
+  if(length(which(names(metrics_data) %in% c("Pdispersion", "Pr2"))) == 1){plot_data$precision <- metrics_data[,which(names(metrics_data) %in% c("Pdispersion", "Pr2"))]}else{
+    plot_data$precision <- rowSums(metrics_data[,which(names(metrics_data) %in% c("Pdispersion", "Pr2"))])/ncol(metrics_data)}
   
-  plot_data$accuracy       <- rowMeans(plot_data[accuracy_metrics], na.rm = T)
-  plot_data$discrimination <- rowMeans(plot_data[discrimination_metrics], na.rm = T)
-  plot_data$precision      <- rowMeans(plot_data[precision_metrics], na.rm = T)
+  # aggregate the evaluation metrics
+  plot_data$aggregated_evaluation_metrics <- rowSums(metrics_data)/ncol(metrics_data)
+  
+  ## check relationships between metric groupings
+  #Accuracy  <- plot_data[which(names(plot_data) %in% c('Armse', 'Amae'))]
+  #Discrim   <- plot_data[which(names(plot_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))]
+  #Precision <- plot_data[which(names(plot_data) %in% c('Psd', 'Pdispersion', 'Pr2'))]
+  
+  # Accuracy_1 <- data.frame(sapply(Accuracy,  function(x) fix_outliers(x, 0.025)))
+  # #pairs(Accuracy_1)
+  # Discrim_1 <- data.frame(sapply(1:ncol(Discrim),  function(x) fix_outliers(Discrim[[x]], 0.025, lower = (names(Discrim) %in% 'Dintercept')[x], upper = (names(Discrim) %in% 'Dintercept')[x])))
+  # #pairs(Discrim_1)
+  # Precision_1 <- data.frame(sapply(Precision, function(x) fix_outliers(x, 0.025)))
+  # #pairs(Precision_1)
+  # 
+  # # rescale values
+  # rescale_01 <- function(x){(x-min(x,na.rm = T))/(max(x, na.rm = T)-min(x, na.rm = T))}
+  # Accuracy_2 <- data.frame(sapply(Accuracy_1, rescale_01))
+  # #pairs(Accuracy_2)
+  # 
+  # if(c('Dslope') %in% names(plot_data)){Discrim_1$Dslope <- 1-Discrim_1$Dslope} # target is 1 without boundary
+  # Discrim_2 <- data.frame(sapply(Discrim_1, rescale_01))
+  # #pairs(Discrim_2)
+  # 
+  # if(c('Pdispersion') %in% names(plot_data)){Precision_1$Pdispersion <- 1-Precision_1$Pdispersion} # target is 1 without boundary
+  # Precision_2 <- data.frame(sapply(Precision_1, rescale_01))
+  # #pairs(Precision_2)
+  # 
+  # # invert range where necessary so that high numbers is always good
+  # invert_range <- function(x){( max(x, na.rm = T) + min(x, na.rm = T) ) - x}
+  # 
+  # if(c('Armse') %in% names(plot_data)){Accuracy_2$Armse <- invert_range(Accuracy_2$Armse)}
+  # if(c('Amae') %in% names(plot_data)){Accuracy_2$Amae <- invert_range(Accuracy_2$Amae)}
+  # 
+  # # if(c('Dintercept') %in% names(plot_data)){Discrim_2$Dintercept <- invert_range(Discrim_2$Dintercept)}
+  # if(c('Dslope') %in% names(plot_data)){Discrim_2$Dslope <- invert_range(Discrim_2$Dslope)}
+  # 
+  # if(c('Psd') %in% names(plot_data)){Precision_2$Psd <- invert_range(Precision_2$Psd)}
+  # if(c('Pdispersion') %in% names(plot_data)){Precision_2$Pdispersion <- invert_range(Precision_2$Pdispersion)}
+  # 
+  # # check directions when writing function
+  # #pairs(cbind(Accuracy_2, Discrim_2, Precision_2))
+  # 
+  # # aggregate over metric types 
+  # accuracy_metrics = names(Accuracy_2)
+  # discrimination_metrics = names(Discrim_2)
+  # precision_metrics = names(Precision_2)
+  # 
+  # plot_data[accuracy_metrics] <- Accuracy_2
+  # plot_data[discrimination_metrics] <- Discrim_2
+  # plot_data[precision_metrics] <- Precision_2
+  # 
+  # plot_data$accuracy       <- rowMeans(plot_data[accuracy_metrics], na.rm = T)
+  # plot_data$discrimination <- rowMeans(plot_data[discrimination_metrics], na.rm = T)
+  # plot_data$precision      <- rowMeans(plot_data[precision_metrics], na.rm = T)
   
   return(plot_data)
   

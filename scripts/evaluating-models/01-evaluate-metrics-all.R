@@ -5,32 +5,32 @@ library(tidyverse)
 # all functions for evaluating outputs
 source('scripts/evaluating-models/functions/evaluation_functions.R')
 
-# # get folders of interest
-# result_folders <- c(list.files('results', recursive = F, full.names = T, pattern = 'cv_all'), 
-#                     list.files('results', recursive = F, full.names = T, pattern = 'basic_all'))
-# 
-# # get level 2 folders
-# results_folders_2 <- sapply(result_folders, function(x){list.files(x, pattern = 'predictions_', full.names = T)})
-# 
-# for(folder in 1:length(results_folders_2)){
-#   
-#   # here in the future run iteratively for each folder of interest
-#   predictions_folder_files <- lapply(results_folders_2[,folder], function(x){print(x); list.files(x, full.names = T)})
-#   
-#   # in the future, run this over each modelling subset for scalability
-#   
-#   bind_files <- lapply(predictions_folder_files, function(x){
-#     bind_results_save(x,
-#                       directory = 'results/predictions_all/bind/', 
-#                       name = paste0(strsplit(x, '/')[[1]][2], '_',strsplit(x, '/')[[1]][3]))})
-#   
-#   # Clean data levels ----
-#   
-#   # some of the encodings output from the models aren't well match so match values here across modelling frameworks using the clean_levels functions
-#   
-#   clean_files <- lapply(bind_files, clean_levels)
-#   
-# }
+# get folders of interest
+result_folders <- c(list.files('results', recursive = F, full.names = T, pattern = 'cv_all'), 
+                    list.files('results', recursive = F, full.names = T, pattern = 'basic_all'))
+
+# get level 2 folders
+results_folders_2 <- sapply(result_folders, function(x){list.files(x, pattern = 'predictions_', full.names = T)})
+
+for(folder in 1:length(results_folders_2)){
+ 
+ # here in the future run iteratively for each folder of interest
+ predictions_folder_files <- lapply(results_folders_2[,folder], function(x){print(x); list.files(x, full.names = T)})
+ 
+ # in the future, run this over each modelling subset for scalability
+ 
+ bind_files <- lapply(predictions_folder_files, function(x){
+   bind_results_save(x,
+                     directory = 'results/predictions_all/bind/', 
+                     name = paste0(strsplit(x, '/')[[1]][2], '_',strsplit(x, '/')[[1]][3]))})
+ 
+ # Clean data levels ----
+ 
+ # some of the encodings output from the models aren't well match so match values here across modelling frameworks using the clean_levels functions
+ 
+# clean_files <- lapply(bind_files, clean_levels)
+ 
+}
 
 # perform evaluation on bindings ----
 
