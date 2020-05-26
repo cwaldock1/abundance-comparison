@@ -150,7 +150,7 @@ all_model_plots_v2 <- function(plot_data, # object after running abundance_asses
     lower = ifelse(metrics[j] %in% c('Dintercept'), T, F)
     upper = ifelse(metrics[j] %in% c('Dpearson', 'Dspearman', 'Pr2', 'Dintercept'), F, T)
     t_v = targets[j][[1]]
-    decreasing = ifelse(metrics[j] %in% c('Armse', 'Amae', 'Dslope', 'Psd', 'Pdispersion'), T, F)
+    decreasing = ifelse(metrics[j] %in% c('Armse', 'Amae', 'Dintercept', 'Psd'), T, F)
     
     # fix extreme values based on boundaries
     metric_plot_data$metrics <- fix_outliers(metric_plot_data$metrics, outlier_quantile, lower = lower, upper = upper)
@@ -159,13 +159,19 @@ all_model_plots_v2 <- function(plot_data, # object after running abundance_asses
     metric_plot_data <- metric_plot_data %>% 
       group_by(plot_level) %>% 
       nest() %>% 
-      mutate(median_metric = purrr::map(data, ~median(.$metrics, na.rm = T))) %>% 
+      mutate(median_metric = purrr::map(data, ~median(.$metrics, na.rm = T)), 
+             upr_metric    = purrr::map(data, ~as.numeric(quantile(.$metrics, 0.75, na.rm = T))),
+             lwr_metric    = purrr::map(data, ~as.numeric(quantile(.$metrics, 0.25, na.rm = T)))) %>% 
       unnest()
     metric_plot_data$plot_level <- factor(metric_plot_data$plot_level, levels = unique(metric_plot_data$plot_level[order(metric_plot_data$median_metric, decreasing=decreasing)]))
     
+    # remove unneccessary data
+    metric_plot_data <- metric_plot_data %>% dplyr::select(plot_level, median_metric, lwr_metric, upr_metric, fitted_model) %>% unique()
+    
     # produce baseplots 
       p <- ggplot(data = metric_plot_data) + 
-      geom_boxplot(aes(x = plot_level, y = metrics, fill = fitted_model, colour = fitted_model), alpha = 0.5) + 
+      geom_point(aes(x = plot_level, y = median_metric, fill = fitted_model, colour = fitted_model)) + 
+      geom_linerange(aes(x = plot_level, ymin = lwr_metric, ymax = upr_metric, fill = fitted_model, colour = fitted_model)) + 
       geom_hline(data = data.frame(t_v=t_v), aes(yintercept = t_v[1]), lty=2, col='black') + 
       ylab(metrics[j]) + 
       theme_bw() + 
@@ -181,8 +187,9 @@ all_model_plots_v2 <- function(plot_data, # object after running abundance_asses
       scale_fill_manual(values = colours) + 
       scale_colour_manual(values = colours) 
       
-      # produce annotatins
-      y_values <- seq(from = min(metric_plot_data$metrics, na.rm  = T), to = max(metric_plot_data$metrics, na.rm  = T), length.out = 10)
+      # produce annotations
+      y_range <- ggplot_build(p)$layout$panel_scales_y[[1]]$range$range
+      y_values <- seq(from = min(y_range, na.rm  = T), to = max(y_range, na.rm  = T), length.out = 10)
       y_values <- y_values[10:5]#ifelse(rep(metrics[j] %in% c('Armse', 'Amae', 'Dintercept', 'Psd', 'Pdispersion'),5), y_values[1:5], rev(y_values[5:10]))
       labels <- as.character(rev(levels(metric_plot_data$plot_level)))[1:5]
       for(i in 1:5){
@@ -203,7 +210,8 @@ all_model_plots_v2 <- function(plot_data, # object after running abundance_asses
     # grab the legend
     if(j == length(metrics)){
       plots_all[[j+1]] <- get_legend(ggplot(data = metric_plot_data) + 
-                                          geom_boxplot(aes(x = NA, y = NA, fill = fitted_model, colour = fitted_model), alpha = 0.5) +
+                                          geom_point(aes(x = NA, y = NA, fill = fitted_model, colour = fitted_model)) +
+                                          geom_line(aes(x = NA, y = NA, fill = fitted_model, colour = fitted_model)) +
                                           scale_fill_manual(values = colours) + 
                                           scale_colour_manual(values = colours) +
                                           theme(legend.title = element_blank(), 
@@ -276,49 +284,66 @@ combined_assessment_metrics <- function(plot_data, # a wide dataframe of all ass
     
     t_v2 <- targets[[i]]
     
-    if(sum(metric_plot_data$metric_median > t_v2[3]) != 0){
-    metric_plot_data$metric_median[which(metric_plot_data$metric_median > t_v2[3])] <- t_v2[3]}
-    if(sum(metric_plot_data$metric_median < t_v2[2]) != 0){
-    metric_plot_data$metric_median[which(metric_plot_data$metric_median < t_v2[2])] <- t_v2[2]}
-    metric_plot_data <- na.omit(metric_plot_data)
+    #  if(sum(metric_plot_data$metric_median > t_v2[3]) != 0){
+    #  metric_plot_data$metric_median[which(metric_plot_data$metric_median > t_v2[3])] <- t_v2[3]}
+    #  if(sum(metric_plot_data$metric_median < t_v2[2]) != 0){
+    #  metric_plot_data$metric_median[which(metric_plot_data$metric_median < t_v2[2])] <- t_v2[2]}
+    #  metric_plot_data <- na.omit(metric_plot_data)
+    #  
+    #  # set lower ylim
+    #  if(min(metric_plot_data$metric_median,na.rm=T) > t_v2[2]){y_lower = min(metric_plot_data$metric_median,na.rm=T)-0.1}else{y_lower <- t_v2[2]}
+    #  if(max(metric_plot_data$metric_median,na.rm=T) < t_v2[3]){y_upper = max(metric_plot_data$metric_median,na.rm=T)-0.1}else{y_upper <- t_v2[3]}
+    #  
+    #  if(y_lower > t_v2[1]){y_lower <- t_v2[1]}
+    #  if(y_upper < t_v2[1]){y_upper <- t_v2[1]}
     
-    # set lower ylim
-    if(min(metric_plot_data$metric_median,na.rm=T) > t_v2[2]){y_lower = min(metric_plot_data$metric_median,na.rm=T)-0.1}else{y_lower <- t_v2[2]}
-    if(max(metric_plot_data$metric_median,na.rm=T) < t_v2[3]){y_upper = max(metric_plot_data$metric_median,na.rm=T)-0.1}else{y_upper <- t_v2[3]}
-    
-    if(y_lower > t_v2[1]){y_lower <- t_v2[1]}
-    if(y_upper < t_v2[1]){y_upper <- t_v2[1]}
-    
-    p <- ggplot(data = metric_plot_data)
     
     if(response == 'all'){
-      p + geom_boxplot(aes(x = abundance_response, 
-                           y = metric_median, 
+      
+      # aggregate to median and quantiles
+      metric_plot_data_all <- metric_plot_data %>% 
+        group_by(dataset,
+                 cross_validation,
+                 abundance_response,
+                 fitted_model) %>% 
+        nest() %>% 
+        mutate(species_median = purrr::map(data, ~median(.$metric_median, na.rm = T)), 
+               species_upr    = purrr::map(data, ~as.numeric(quantile(.$metric_median, 0.75, na.rm = T))),
+               species_lwr    = purrr::map(data, ~as.numeric(quantile(.$metric_median, 0.25, na.rm = T)))) %>% 
+        unnest()
+      
+      # remove unneccessary data
+      metric_plot_data_all <- metric_plot_data_all %>% dplyr::select(species_median, 
+                                                                     species_upr, 
+                                                                     species_lwr, 
+                                                                     dataset,
+                                                                     cross_validation,
+                                                                     abundance_response,
+                                                                     fitted_model) %>% 
+        unique()
+      
+      
+      p <- ggplot(data = metric_plot_data_all)
+      
+      p + geom_point(aes(x = abundance_response, 
+                           y = species_median, 
                            group = paste0(abundance_response, '  ', fitted_model),
-                           fill = fitted_model), 
-                       outlier.shape = NA, lwd = 0.5, fatten = 2) -> p2 
+                           col = fitted_model), 
+                     position=position_dodge(width=0.75), size = 3) + 
+        geom_linerange(aes(x = abundance_response, 
+                           ymin = species_lwr,
+                           ymax = species_upr,
+                           group = paste0(abundance_response, '  ', fitted_model),
+                           col = fitted_model), 
+                       position=position_dodge(width=0.75)) -> p2 
     }
     
-    if(response == 'abundance_response'){
-      p + geom_boxplot(aes(x = abundance_response, 
-                           y = metric_median, 
-                           group = abundance_response,
-                           fill = abundance_response), 
-                       outlier.shape = NA, lwd = 0.5, fatten = 2) -> p2}
-    
-    if(response == 'fitted_model'){
-      p + geom_boxplot(aes(x = fitted_model, 
-                           y = metric_median, 
-                           group = fitted_model,
-                           fill = fitted_model), 
-                       outlier.shape = NA, lwd = 0.5, fatten = 2) -> p2}
-    
-      p2 + geom_hline(data = data.frame(t_v2=t_v2), aes(yintercept = t_v2[1]), lty=2, col='red') + 
+    p2 + geom_hline(data = data.frame(t_v2=t_v2), aes(yintercept = t_v2[1]), lty=2, col='black') + 
       facet_wrap(~dataset) + 
       theme_classic() + 
       xlab(NULL) + 
       ylab(metrics[i]) + 
-      ylim(y_lower, y_upper) +
+      #ylim(y_lower, y_upper) +
       scale_size_continuous(range = c(0.5, 2)) + 
       scale_fill_manual(values = colours) + 
       scale_colour_manual(values = colours) + 
@@ -380,69 +405,16 @@ aggregate_metrics <- function(plot_data,
   
   # create columns for plotting
   if(length(which(names(metrics_data) %in% c('Armse', 'Amae'))) == 1){plot_data$accuracy <- metrics_data[,which(names(metrics_data) %in% c('Armse', 'Amae'))]}else{
-    plot_data$accuracy <- rowSums(metrics_data[,which(names(metrics_data) %in% c('Armse', 'Amae'))])/ncol(metrics_data)}
+    plot_data$accuracy <- rowSums(metrics_data[,which(names(metrics_data) %in% c('Armse', 'Amae'))])/length(which(names(metrics_data) %in% c('Armse', 'Amae')))}
   
   if(length(which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))) == 1){plot_data$discrimination <- metrics_data[,which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))]}else{
-    plot_data$discrimination <- rowSums(metrics_data[,which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))])/ncol(metrics_data)}
+    plot_data$discrimination <- rowSums(metrics_data[,which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))])/length(which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman')))}
   
   if(length(which(names(metrics_data) %in% c("Pdispersion", "Pr2"))) == 1){plot_data$precision <- metrics_data[,which(names(metrics_data) %in% c("Pdispersion", "Pr2"))]}else{
-    plot_data$precision <- rowSums(metrics_data[,which(names(metrics_data) %in% c("Pdispersion", "Pr2"))])/ncol(metrics_data)}
+    plot_data$precision <- rowSums(metrics_data[,which(names(metrics_data) %in% c("Pdispersion", "Pr2"))])/length(which(names(metrics_data) %in% c("Pdispersion", "Pr2")))}
   
   # aggregate the evaluation metrics
   plot_data$aggregated_evaluation_metrics <- rowSums(metrics_data)/ncol(metrics_data)
-  
-  ## check relationships between metric groupings
-  #Accuracy  <- plot_data[which(names(plot_data) %in% c('Armse', 'Amae'))]
-  #Discrim   <- plot_data[which(names(plot_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))]
-  #Precision <- plot_data[which(names(plot_data) %in% c('Psd', 'Pdispersion', 'Pr2'))]
-  
-  # Accuracy_1 <- data.frame(sapply(Accuracy,  function(x) fix_outliers(x, 0.025)))
-  # #pairs(Accuracy_1)
-  # Discrim_1 <- data.frame(sapply(1:ncol(Discrim),  function(x) fix_outliers(Discrim[[x]], 0.025, lower = (names(Discrim) %in% 'Dintercept')[x], upper = (names(Discrim) %in% 'Dintercept')[x])))
-  # #pairs(Discrim_1)
-  # Precision_1 <- data.frame(sapply(Precision, function(x) fix_outliers(x, 0.025)))
-  # #pairs(Precision_1)
-  # 
-  # # rescale values
-  # rescale_01 <- function(x){(x-min(x,na.rm = T))/(max(x, na.rm = T)-min(x, na.rm = T))}
-  # Accuracy_2 <- data.frame(sapply(Accuracy_1, rescale_01))
-  # #pairs(Accuracy_2)
-  # 
-  # if(c('Dslope') %in% names(plot_data)){Discrim_1$Dslope <- 1-Discrim_1$Dslope} # target is 1 without boundary
-  # Discrim_2 <- data.frame(sapply(Discrim_1, rescale_01))
-  # #pairs(Discrim_2)
-  # 
-  # if(c('Pdispersion') %in% names(plot_data)){Precision_1$Pdispersion <- 1-Precision_1$Pdispersion} # target is 1 without boundary
-  # Precision_2 <- data.frame(sapply(Precision_1, rescale_01))
-  # #pairs(Precision_2)
-  # 
-  # # invert range where necessary so that high numbers is always good
-  # invert_range <- function(x){( max(x, na.rm = T) + min(x, na.rm = T) ) - x}
-  # 
-  # if(c('Armse') %in% names(plot_data)){Accuracy_2$Armse <- invert_range(Accuracy_2$Armse)}
-  # if(c('Amae') %in% names(plot_data)){Accuracy_2$Amae <- invert_range(Accuracy_2$Amae)}
-  # 
-  # # if(c('Dintercept') %in% names(plot_data)){Discrim_2$Dintercept <- invert_range(Discrim_2$Dintercept)}
-  # if(c('Dslope') %in% names(plot_data)){Discrim_2$Dslope <- invert_range(Discrim_2$Dslope)}
-  # 
-  # if(c('Psd') %in% names(plot_data)){Precision_2$Psd <- invert_range(Precision_2$Psd)}
-  # if(c('Pdispersion') %in% names(plot_data)){Precision_2$Pdispersion <- invert_range(Precision_2$Pdispersion)}
-  # 
-  # # check directions when writing function
-  # #pairs(cbind(Accuracy_2, Discrim_2, Precision_2))
-  # 
-  # # aggregate over metric types 
-  # accuracy_metrics = names(Accuracy_2)
-  # discrimination_metrics = names(Discrim_2)
-  # precision_metrics = names(Precision_2)
-  # 
-  # plot_data[accuracy_metrics] <- Accuracy_2
-  # plot_data[discrimination_metrics] <- Discrim_2
-  # plot_data[precision_metrics] <- Precision_2
-  # 
-  # plot_data$accuracy       <- rowMeans(plot_data[accuracy_metrics], na.rm = T)
-  # plot_data$discrimination <- rowMeans(plot_data[discrimination_metrics], na.rm = T)
-  # plot_data$precision      <- rowMeans(plot_data[precision_metrics], na.rm = T)
   
   return(plot_data)
   
@@ -477,16 +449,38 @@ plot_all_aggregated <- function(plot_data,
              metric) %>% 
     # take the mean across metrics because of rescaling
     do(metric_mean = mean(.$value, na.rm = T)) %>% 
-    unnest(c(metric_mean))
+    unnest(c(metric_mean)) %>% 
+    group_by(dataset,
+             cross_validation,
+             abundance_response,
+             fitted_model,
+             metric) %>% 
+    do(species_median = median(.$metric_mean, na.rm = T), 
+       species_upr    = quantile(.$metric_mean, 0.75, na.rm = T), 
+       species_lwr    = quantile(.$metric_mean, 0.25, na.rm = T)) %>% 
+    unnest(c(species_median, species_upr, species_lwr))
+    
   
   metric_plot_data$fitted_model <- factor(as.factor(metric_plot_data$fitted_model), levels)
   
   plot_1 <- ggplot(data = metric_plot_data) + 
-    geom_boxplot(aes(x = abundance_response, 
-                         y = metric_mean, 
-                         group = paste0(abundance_response, '  ', fitted_model),
-                         fill = fitted_model), 
-                     outlier.shape = NA, lwd = 0.5, fatten = 2) + 
+    geom_point(aes(x = abundance_response, 
+                   y = species_median, 
+                   group = paste0(abundance_response, '  ', fitted_model),
+                   col = fitted_model),
+               size = 3,
+               position=position_dodge(width=0.75)) + 
+    geom_linerange(aes(x = abundance_response, 
+                       ymin = species_lwr,
+                       ymax = species_upr,
+                       group = paste0(abundance_response, '  ', fitted_model),
+                       col = fitted_model), 
+                   position=position_dodge(width=0.75)) +
+    #geom_boxplot(aes(x = abundance_response, 
+    #                     y = metric_mean, 
+    #                     group = paste0(abundance_response, '  ', fitted_model),
+    #                     fill = fitted_model), 
+    #                 outlier.shape = NA, lwd = 0.5, fatten = 2) + 
     facet_wrap(~dataset + metric) + 
     theme_classic() + 
     xlab(NULL) + 
@@ -544,19 +538,29 @@ rank_plots <- function(plot_data,
     gather(., key = 'metrics', value = 'value', metrics) %>% 
     group_by(dataset, cross_validation_2, species_name, metrics) %>%
     do(best_model = get_models(.)) %>% 
-    unnest(cols = c(best_model))
+    unnest(cols = c(best_model)) %>% 
+    na.omit()
   
   model_count$fitted_model <- sub('\\..*', '', model_count$best_model)
   model_count$fitted_model <- factor(as.factor(model_count$fitted_model), levels)
+  model_count$best_model <- gsub('rf.|glm.|gam.|gbm.','' , model_count$best_model)
+  model_count$best_model <- gsub('abun-occ_2stage', 'abun-occ-2stage', gsub('abunocc', 'abun-occ', model_count$best_model))
+  model_count$abundance_response <- sub('\\..*', '', model_count$best_model)
+  model_count$abundance_response <- plyr::revalue(model_count$abundance_response, c(`abun-occ` = 'ao', `abun` = 'a', `abun-occ-2stage` = 'ao-2'))
+  model_count$best_model <- gsub('abun-occ-2stage.|abun-occ.|abun.', '', model_count$best_model)
+  
   
   #detach("package:cowplot", unload = TRUE)
   plot <- ggplot(data = model_count) + 
     geom_bar(aes(x=gsub('_','',gsub('.','-',best_model, fixed = T)), fill = fitted_model), col = 'black', lwd = 0.5) + 
-    theme(axis.text.x = element_text(angle = 45, hjust=1), 
+    theme(axis.text.x = element_text(angle = 90, hjust=1, vjust= 0.5, size = 8), 
           panel.border = element_rect(linetype = 1), 
           panel.background = element_rect(fill = 'grey95'), 
-          strip.background = element_blank()) + 
-    facet_grid(metrics~fitted_model, scale = 'free') + 
+          strip.background = element_blank(), 
+          aspect.ratio=1, 
+          strip.text.x=element_text(margin=margin(t=1, r=5, b=5, l=5), size = 10), 
+          strip.text.y=element_text(margin=margin(t=1, r=1, b=1, l=1), size = 8)) + 
+    facet_grid(metrics~fitted_model + abundance_response, scale = 'free') + 
     xlab('') + 
     ylab('model count') + 
     scale_fill_manual(values = colours, name = '') + 

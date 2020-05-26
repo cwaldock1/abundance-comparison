@@ -1,7 +1,7 @@
 # script to produce figures that evaluate model performance across different modelling proceedures
 
 # load packages ----
-lib_vect <- c('tidyverse', 'cowplot', 'RColorBrewer', 'gridExtra')
+lib_vect <- c('tidyverse', 'cowplot', 'RColorBrewer', 'gridExtra', 'grid')
 install.lib<-lib_vect[!lib_vect %in% installed.packages()]
 for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(lib_vect,require,character=TRUE)
@@ -15,54 +15,98 @@ colours = colorRampPalette(c("#0099CC80","#9ECAE1","#58BC5D","#EEF559","#FF9933"
 
 levels = c('glm', 'gam', 'gbm', 'rf')
 
-metrics = c('Armse', 'Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Psd', 'Pdispersion', 'Pr2')
+metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')
 
-targets = list(Armse    = c(0, -20, 20), 
+targets = list(#Armse    = c(0, -20, 20), 
                Amae     = c(0, -20, 20), 
                Dintercept  = c(0, -5, 20), 
                Dslope      = c(1,  0, 2), 
                Dpearson    = c(1,  0, 1), 
                Dspearman   = c(1,  0, 1), 
-               Psd         = c(0,  0, 100), 
+               #Psd         = c(0,  0, 100), 
                Pdispersion = c(1,  0, 20), 
                Pr2         = c(1,  0, 1))
 
 # load in evaluation data ----
 
-all_assessments <- lapply(list.files('results/model_assessment', full.names = T), readRDS)
+all_assessments <- lapply(list.files('results/model_assessment_all/validation', full.names = T), readRDS)
 
 all_assessments <- do.call(rbind, all_assessments)
 
 # select only the columns to be used later 
 all_assessments <- all_assessments %>% select(-family_grouped_simple, -family_grouped, -family, 
-                           -transformation, -n_absence, -n_boot_absence, -abundance_response_simple, 
-                           -mean_abundance, -frequency, -mean_abundance_perc, -frequency_perc, -n_abundance) %>% 
+                           -transformation, -n_absence, -n_boot_absence, -abundance_response_simple) %>% 
   
   # create new cross validation level
   mutate(cross_validation_2 = gsub('rls_', '', gsub('bbs_', '', .$cross_validation))) %>% 
   
   # select final columns for this script
   select(dataset, cross_validation, cross_validation_2, fitted_model, abundance_response, plot_level, species_name,
-         Armse, Amae, Dintercept, Dslope, Dpearson, Dspearman, Psd, Pdispersion, Pr2)
+         Armse, Amae, Dintercept, Dslope, Dpearson, Dspearman, Psd, Pdispersion, Pr2, Evaluation_number, Evaluation_message) %>% 
+  
+  # change abundance_response
+  mutate(abundance_response = plyr::revalue(.$abundance_response, c(abunocc = "abun-occ", abunocc_2stage = "abun-occ-2stage")))
 
+# create plots of % of species per model type ----
 
+# summarise models and species
+
+length(unique(all_assessments$plot_level))
+length(unique(all_assessments$species_name))
+
+# create a full set of models and species
+
+full_model_set <- all_assessments %>% 
+  group_by(dataset, fitted_model, abundance_response) %>% 
+  do(expand.grid(plot_level = .$plot_level %>% unique(), species_name = .$species_name %>% unique()))
+  
+full_model_set <- rbind(full_model_set %>% mutate(cross_validation_2 = 'cv'), full_model_set %>% mutate(cross_validation_2 = 'basic'))
+
+full_model_join <- full_join(full_model_set, all_assessments %>% 
+                               select(plot_level, species_name, dataset, fitted_model, abundance_response, cross_validation_2) %>% 
+                               unique() %>% 
+                               mutate(model_present = 1))
+
+# estimate proportions
+model_summaries <- full_model_join %>% 
+  ungroup() %>% 
+  group_by(dataset, cross_validation_2, plot_level, fitted_model, abundance_response) %>% 
+  do(models_fit_proportion = sum(.$model_present, na.rm = T) / length(unique(.$species_name))) %>% 
+  unnest()
+
+model_summaries$plot_level <- gsub('_', '-', gsub('gam.|rf.|glm.|gbm.', '', model_summaries$plot_level))
+
+dir.create('figures/model-performance-figures/model_counts')
+pdf('figures/model-performance-figures/model_counts/model_counts.pdf', width = 20, height = 8)
+ggplot(model_summaries) + 
+  geom_bar(aes(x = plot_level, y = 1-models_fit_proportion, fill = fitted_model, alpha = models_fit_proportion), 
+           stat = 'identity', col = 'black') +
+  facet_grid(dataset ~ cross_validation_2 + fitted_model, scales = 'free_x') + 
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 1, vjust = 0.5), 
+        aspect.ratio = 1) + 
+  scale_fill_manual(values = colours) + 
+  ylim(c(0,1)) + 
+  ylab('proportion of species with unsuccessful models') + 
+  xlab('model type') + 
+  scale_alpha_continuous(range = c(1, 0.2))
+dev.off()
 
 
 # full plots across all species and model scenarios for supporting materials ----
 
-### REMOVE THIS PLOTTING PROCEEDURE AND FUNCTION AND ADAPT FOR EVALUATING SPECIES TRAITS AND ABUNDANCE EFFECTS ON MODEL PERFORMANCE
-nested_assessments <- all_assessments %>% 
-  group_by(dataset, 
-           abundance_response, 
-           cross_validation) %>% 
-  nest()
-
-lapply(1:nrow(nested_assessments), 
-       function(x){
-         all_model_plots(plot_data = nested_assessments$data[[x]], 
-                         directory = paste0('figures/all_model_plots/', 
-                                            nested_assessments$cross_validation[x], '/', 
-                                            nested_assessments$abundance_response[x]))})
+# ### REMOVE THIS PLOTTING PROCEEDURE AND FUNCTION AND ADAPT FOR EVALUATING SPECIES TRAITS AND ABUNDANCE EFFECTS ON MODEL PERFORMANCE
+# nested_assessments <- all_assessments %>% 
+#   group_by(dataset, 
+#            abundance_response, 
+#            cross_validation) %>% 
+#   nest()
+# 
+# lapply(1:nrow(nested_assessments), 
+#        function(x){
+#          all_model_plots(plot_data = nested_assessments$data[[x]], 
+#                          directory = paste0('figures/all_model_plots/', 
+#                                             nested_assessments$cross_validation[x], '/', 
+#                                             nested_assessments$abundance_response[x]))})
 
 # plot of all metrics for each individual model type ----
 
@@ -70,16 +114,18 @@ nested_assessments <- all_assessments %>%
   group_by(dataset, cross_validation_2) %>% 
   nest()
 
-# plot_data <- nested_assessments$data[[1]] # for testing functions
+# plot_data <- nested_assessments$data[[3]] # for testing functions
 
 # apply across both validation types
 lapply(1:nrow(nested_assessments), 
        function(x){
          all_model_plots_v2(plot_data = nested_assessments$data[[x]], 
-                            outlier_quantile = 0.05,
+                            outlier_quantile = 0.1,
+                            metrics = metrics,
+                            targets = targets,
                             directory = paste0('figures/model-performance-figures/all_model_all_metric_combined/'), 
                             name =  paste0(nested_assessments$dataset[x], '_', nested_assessments$cross_validation_2[x]), 
-                            height = 14, 
+                            height = 10, 
                             width = 14)})
 
 
@@ -88,6 +134,8 @@ lapply(1:nrow(nested_assessments),
 nested_assessments <- all_assessments %>% 
   group_by(cross_validation_2) %>% 
   nest()
+
+# plot_data = nested_assessments$data[[1]]
 
 lapply(1:nrow(nested_assessments),
        function(x){
@@ -99,34 +147,60 @@ lapply(1:nrow(nested_assessments),
                                      colours = colours,
                                      directory  = 'figures/model-performance-figures/all_model_boxplots/', 
                                      name = nested_assessments$cross_validation_2[x], 
-                                     width = 12, 
+                                     width = 8, 
                                      height = 10)})
 
-lapply(1:nrow(nested_assessments),
-       function(x){
-         combined_assessment_metrics(plot_data = nested_assessments$data[[x]], 
-                                     levels = levels, 
-                                     metrics = metrics,
-                                     targets = targets,
-                                     colours = colours,
-                                     response = 'abundance_response',
-                                     directory  = 'figures/model-performance-figures/all_model_boxplots/', 
-                                     name = paste0(nested_assessments$cross_validation_2[x], '--abundance_response'), 
-                                     width = 12, 
-                                     height = 10)})
+# values of aggregated models within metrics types
+options(scipen=999)
 
-lapply(1:nrow(nested_assessments),
-       function(x){
-         combined_assessment_metrics(plot_data = nested_assessments$data[[x]], 
-                                     response = 'fitted_model',
-                                     levels = levels, 
-                                     metrics = metrics,
-                                     targets = targets,
-                                     colours = colours,
-                                     directory  = 'figures/model-performance-figures/all_model_boxplots/', 
-                                     name = paste0(nested_assessments$cross_validation_2[x], '--fitted_model'), 
-                                     width = 12, 
-                                     height = 10)})
+# make summary tables across metrics of values included in the point-line plots
+summary_table <- all_assessments %>% 
+  group_by(cross_validation_2, dataset) %>% 
+  nest() %>% 
+  mutate(gathered_data = purrr::map(data, 
+                                    # gather by metrics and create aggregations across species and metrics
+                                    ~gather(., key = metric, value = value,  metrics) %>% 
+                                      mutate(value = ifelse(is.infinite(value), NA, value)) %>%
+                                      group_by(fitted_model,
+                                               abundance_response,
+                                               metric) %>% 
+                                      do(metric_median = round(signif(median(.$value, na.rm = T), 2), 2), 
+                                         metric_sd    = signif(quantile(.$value, 0.75, na.rm = T) - quantile(.$value, 0.25, na.rm = T), 2)) %>% 
+                                      unnest(c(metric_median, metric_sd)) %>% 
+                                      mutate(metric_sd = ifelse(.$metric_sd < 0.00001, 0, .$metric_sd)))) %>%
+  unnest(c(gathered_data)) %>% 
+  mutate(metric_final = paste0(metric_median, ' (±', metric_sd, ')')) %>% 
+  select(-metric_median, -metric_sd) %>% 
+  dplyr::select(-data) %>% 
+  pivot_wider(., names_from = metric, values_from = c(metric_final)) %>% 
+  data.frame %>% 
+  rename(., data = dataset, cv = cross_validation_2, response = abundance_response, model = fitted_model)
+
+summary_table_full <- all_assessments %>% 
+  group_by(cross_validation_2, dataset) %>% 
+  nest() %>% 
+  mutate(gathered_data = purrr::map(data, 
+                                    # gather by metrics and create aggregations across species and metrics
+                                    ~gather(., key = metric, value = value,  metrics) %>% 
+                                      mutate(value = ifelse(is.infinite(value), NA, value)) %>% 
+                                      group_by(fitted_model,
+                                               abundance_response,
+                                               plot_level, 
+                                               metric) %>% 
+                                      do(metric_median = round(signif(median(.$value, na.rm = T), 2), 2), 
+                                         metric_sd    = signif(quantile(.$value, 0.75, na.rm = T) - quantile(.$value, 0.25, na.rm = T), 2)) %>% 
+                                      unnest(c(metric_median, metric_sd)) %>% 
+                                    mutate(metric_sd = ifelse(.$metric_sd < 0.00001, 0, .$metric_sd)))) %>% 
+  unnest(c(gathered_data)) %>% 
+  mutate(metric_final = paste0(metric_median, ' (±', metric_sd, ')')) %>% 
+  select(-metric_median, -metric_sd) %>% 
+  dplyr::select(-data) %>% 
+  pivot_wider(., names_from = metric, values_from = c(metric_final)) %>% 
+  data.frame %>% 
+  rename(., data = dataset, cv = cross_validation_2, response = abundance_response, model = fitted_model)
+
+# write to spreadsheet for reference
+writexl::write_xlsx(list(full = summary_table_full, agg = summary_table), path = 'figures/model-performance-figures/summary_table.xlsx')
 
 
 # plots of rescaled values comparing between models ----
@@ -134,6 +208,8 @@ lapply(1:nrow(nested_assessments),
 all_assessments_relative <- all_assessments %>% 
   group_by(cross_validation_2) %>% 
   nest()
+
+plot_data = all_assessments_relative$data[[1]]
 
 # aggreagte basic models
 plot_all_aggregated(all_assessments_relative$data[[1]] %>% 
@@ -144,8 +220,9 @@ plot_all_aggregated(all_assessments_relative$data[[1]] %>%
   do.call(rbind, .) %>% 
     mutate(dataset = all_assessments_relative$data[[1]]$dataset), 
   directory = 'figures/model-performance-figures/all_model_rescaled', 
-  colours = colours,
-  name = 'basic')
+  #colours = colours,
+  name = 'basic', 
+  levels = c('glm', 'gam', 'gbm', 'rf'))
 
 # aggregate oob_cv models
 plot_all_aggregated(all_assessments_relative$data[[2]] %>% 
@@ -156,8 +233,8 @@ plot_all_aggregated(all_assessments_relative$data[[2]] %>%
                       do.call(rbind, .) %>% 
                       mutate(dataset = all_assessments_relative$data[[2]]$dataset), 
                     directory = 'figures/model-performance-figures/all_model_rescaled', 
-                    colours = colours,
                     name = 'cv')
+
 
 # plots of ranked models ----
 
@@ -178,24 +255,6 @@ lapply(1:length(nested_assessments),
 plot_data <- nested_assessments$data[[1]]
 
 
-# plots of rescaled values comparing between cross-validation scenarios ----
-
-# for cross validations we present the response ratio
-cv_data <- all_assessments %>% 
-  group_by(dataset, 
-           abundance_response) %>% 
-  nest() 
-
-plot_data <- cv_data$data[[1]]
-  
-lapply(1:nrow(cv_data),
-       function(x){
-         plot_cv_comparison(plot_data = cv_data$data[[x]], 
-                            directory  = paste0('figures/cv_comparisons/', cv_data$dataset[[x]],'/', cv_data$abundance_response[[x]]), 
-                            width = 10, 
-                            height = 10)})
-
-plot_cv_comparison
 
 
 

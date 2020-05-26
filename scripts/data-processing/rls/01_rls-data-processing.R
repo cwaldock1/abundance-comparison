@@ -262,6 +262,14 @@ rls_sum_absences <- lapply(1:length(unique(rls_site_abun$TAXONOMIC_NAME)), FUN =
   
 })
 
+# Data summaries for all species ----
+
+all_rls_data <- do.call(rbind, lapply(list.files('data/rls_all_basic', full.names = T), function(x) readRDS(x)$fitting))
+
+nrow(all_rls_data)
+length(unique(all_rls_data$SiteCode))
+length(unique(all_rls_data$TAXONOMIC_NAME))
+
 
 # create species-specific datasets including 0s from an object with all available sites ----
 

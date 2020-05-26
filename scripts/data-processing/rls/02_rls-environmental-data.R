@@ -156,6 +156,23 @@ resRobSvd <- pcaMethods::pca(rf_covs_ext,
                              nPcs = dim(rf_covs_ext)[2])
 
 resRobSvd # 3 loadings appear important and explain ~75% variation, and all more than 1%
+
+# robustPca calculated PCA
+# Importance of component(s):
+# PC1    PC2     PC3      PC4     PC5      PC6    PC7     PC8     PC9    PC10     PC11     PC12     PC13     PC14    PC15
+# R2            0.4789 0.2163 0.08279 -0.08121 -0.1416 -0.03306 0.0508 -0.0568 -0.0405 -0.2314 -0.05585 -0.26783 -0.01642 -0.07162 -0.1746
+# Cumulative R2 0.4789 0.6952 0.77796  0.69675  0.5552  0.52210 0.5729  0.5161  0.4756  0.2442  0.18837 -0.07946 -0.09588 -0.16750 -0.3421
+# 15 	Variables
+# 3790 	Samples
+# 0 	NAs ( 0 %)
+# 15 	Calculated component(s)
+# Data was mean centered before running PCA 
+# Data was scaled before running PCA 
+# Scores structure:
+#   [1] 3790   15
+# Loadings structure:
+#   [1] 15 15
+
 Loadings <- resRobSvd@loadings[,1:3]
 Loadings <- reshape2::melt(Loadings)
 
@@ -164,8 +181,10 @@ ggplot(Loadings) +
   geom_bar(aes(x = Var1, y = value, fill = value), stat = 'identity') +
   theme_bw() + 
   facet_wrap(~Var2) + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = 'none', aspect.ratio = 1)+
-  scale_fill_gradientn(colours = c("#00AFBB", "#E7B800", "#FC4E07")) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        legend.position = 'none', aspect.ratio = 1, 
+        panel.grid = element_blank())+
+  scale_fill_viridis_c() + 
   ylab('Loading weight') + xlab(NULL) 
 dev.off()
 

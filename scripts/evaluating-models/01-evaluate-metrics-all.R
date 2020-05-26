@@ -5,34 +5,36 @@ library(tidyverse)
 # all functions for evaluating outputs
 source('scripts/evaluating-models/functions/evaluation_functions.R')
 
-# get folders of interest
-result_folders <- c(list.files('results', recursive = F, full.names = T, pattern = 'cv_all'), 
-                    list.files('results', recursive = F, full.names = T, pattern = 'basic_all'))
+### extract data and bind together
 
-# get level 2 folders
-results_folders_2 <- sapply(result_folders, function(x){list.files(x, pattern = 'predictions_', full.names = T)})
+#  # get folders of interest
+#  result_folders <- c(list.files('results', recursive = F, full.names = T, pattern = 'cv_all'), 
+#                      list.files('results', recursive = F, full.names = T, pattern = 'basic_all'))
+#  
+#  # get level 2 folders
+#  results_folders_2 <- sapply(result_folders, function(x){list.files(x, pattern = 'predictions_', full.names = T)})
+#  
+#  for(folder in 1:length(results_folders_2)){
+#   
+#   # here in the future run iteratively for each folder of interest
+#   predictions_folder_files <- lapply(results_folders_2[,folder], function(x){print(x); list.files(x, full.names = T)})
+#   
+#   # in the future, run this over each modelling subset for scalability
+#   
+#   bind_files <- lapply(predictions_folder_files, function(x){
+#     bind_results_save(x,
+#                       directory = 'results/predictions_all/bind/', 
+#                       name = paste0(strsplit(x, '/')[[1]][2], '_',strsplit(x, '/')[[1]][3]))})
+#   
+#   # Clean data levels ----
+#   
+#   # some of the encodings output from the models aren't well match so match values here across modelling frameworks using the clean_levels functions
+#   
+#   # clean_files <- lapply(bind_files, clean_levels)
+#   
+#  }
 
-for(folder in 1:length(results_folders_2)){
- 
- # here in the future run iteratively for each folder of interest
- predictions_folder_files <- lapply(results_folders_2[,folder], function(x){print(x); list.files(x, full.names = T)})
- 
- # in the future, run this over each modelling subset for scalability
- 
- bind_files <- lapply(predictions_folder_files, function(x){
-   bind_results_save(x,
-                     directory = 'results/predictions_all/bind/', 
-                     name = paste0(strsplit(x, '/')[[1]][2], '_',strsplit(x, '/')[[1]][3]))})
- 
- # Clean data levels ----
- 
- # some of the encodings output from the models aren't well match so match values here across modelling frameworks using the clean_levels functions
- 
-# clean_files <- lapply(bind_files, clean_levels)
- 
-}
-
-# perform evaluation on bindings ----
+### perform evaluation on bindings ----
 
 bind_files <- list.files('results/predictions_all/bind', full.names = T)
 
@@ -41,6 +43,8 @@ for(i in 1:length(bind_files)){
   cat(paste0('performing assessments for model set ', i))
   
   clean_files <- readRDS(bind_files[i])
+  
+  clean_files <- clean_levels(clean_files)
   
   model_type <- gsub('results/predictions_all/bind/|_all_predictions_|.rds','_', bind_files[i])
   model_type <- substring(model_type, 2, nchar(model_type)-1)
@@ -51,7 +55,9 @@ for(i in 1:length(bind_files)){
   model_assessment <- clean_files %>% 
         rowwise() %>% 
         do(metrics = abundance_assessment_metrics(predictions   = .$validation_predict_mean, 
-                                                  observations  = .$validation_observed_mean)) %>% 
+                                                  observations  = .$validation_observed_mean, 
+                                                  locations     = .$validation_locations, 
+                                                  scale = NULL)) %>% 
         unnest(metrics) %>% 
         bind_cols(clean_files[,1:13], .) %>% 
         mutate(cross_validation = cross_validation_2)
@@ -64,7 +70,9 @@ for(i in 1:length(bind_files)){
   model_assessment <- clean_files %>% 
     rowwise() %>% 
     do(metrics = abundance_assessment_metrics(predictions   = .$verification_predict_mean, 
-                                              observations  = .$verification_observed_mean)) %>% 
+                                              observations  = .$verification_observed_mean, 
+                                              locations     = .$verification_locations, 
+                                              scale = NULL)) %>% 
     unnest(metrics) %>% 
     bind_cols(clean_files[,1:13], .) %>% 
     mutate(cross_validation = cross_validation_2)

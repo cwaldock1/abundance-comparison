@@ -149,7 +149,24 @@ resRobSvd <- pcaMethods::pca(MERRAclim_values,
                              scale = 'uv', 
                              nPcs = dim(MERRAclim_values)[2])
 
-resRobSvd # suggests 3 PCs lead to increasing variance explained. 
+resRobSvd # suggests 3 PCs lead to increasing variance explained.
+#robustPca calculated PCA
+#Importance of component(s):
+#  PC1    PC2     PC3     PC4     PC5      PC6     PC7     PC8     PC9     PC10     PC11    PC12     PC13     PC14       PC15    PC16    PC17     PC18    PC19
+#  R2            0.6486 0.1656 0.06458 -0.1724 -0.1084 0.008925 -0.1478 -0.1046 -0.1123 -0.02403 -0.24732 -0.2452 -0.04901 -0.06155 -0.0003978 -0.2343 -0.2503 -0.07001 -0.1246
+#  Cumulative R2 0.6486 0.8142 0.87879  0.7064  0.5980 0.606945  0.4592  0.3546  0.2423  0.21826 -0.02907 -0.2742 -0.32323 -0.38478 -0.3851768 -0.6195 -0.8698 -0.93980 -1.0644
+#  19 	Variables
+#  4602 	Samples
+#  0 	NAs ( 0 %)
+#  19 	Calculated component(s)
+#  Data was mean centered before running PCA 
+#  Data was scaled before running PCA 
+#  Scores structure:
+#  [1] 4602   19
+#  Loadings structure:
+#   [1] 19 19
+
+
 Loadings <- resRobSvd@loadings[,1:3]
 Loadings <- reshape2::melt(Loadings)
 
@@ -158,8 +175,10 @@ ggplot(Loadings) +
   geom_bar(aes(x = Var1, y = value, fill = value), stat = 'identity') +
   theme_bw() + 
   facet_wrap(~Var2) + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = 'none', aspect.ratio = 1)+
-  scale_fill_gradientn(colours = c("#00AFBB", "#E7B800", "#FC4E07")) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        legend.position = 'none', aspect.ratio = 1, 
+        panel.grid = element_blank())+
+  scale_fill_viridis_c() + 
   ylab('Loading weight') + xlab(NULL) 
 dev.off()
 

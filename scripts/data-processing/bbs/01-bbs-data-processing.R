@@ -294,6 +294,15 @@ bbs_sum_absences <- lapply(1:length(unique(bbs_site_abun$TAXONOMIC_NAME)), FUN =
   
 })
 
+
+# Data summaries for all species ----
+
+all_bbs_data <- do.call(rbind, lapply(list.files('data/bbs_all_basic', full.names = T), function(x) readRDS(x)$fitting))
+
+length(unique(all_bbs_data$SiteCode))
+length(unique(all_bbs_data$TAXONOMIC_NAME))
+
+
 # 50 SPECIES create species-specific datasets including 0s from an object with all available sites ----
  
 # filter to the species of interest

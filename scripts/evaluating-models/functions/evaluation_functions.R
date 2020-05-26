@@ -104,12 +104,60 @@ clean_levels <- function(data_input){
 
 # abundance_assessment_metrics: calculates assessment metrics ----
 
-abundance_assessment_metrics <- function(predictions, observations, locations){
+abundance_assessment_metrics <- function(predictions, observations, locations, scale = NULL){
+  
+  # check lengths are the same
+  if(length(observations) != length(predictions) & nrow(locations) != length(observations)){return(data.frame(Armse = NA, 
+                                                                                                              Amae  = NA, 
+                                                                                                              Dintercept = NA, 
+                                                                                                              Dslope = NA, 
+                                                                                                              Dpearson = NA, 
+                                                                                                              Dspearman = NA, 
+                                                                                                              Psd = NA, 
+                                                                                                              Pdispersion = NA, 
+                                                                                                              Pr2 = NA, 
+                                                                                                              Evaluation_number = NA, 
+                                                                                                              Scale = if(is.null(scale)){0}else{scale}, 
+                                                                                                              Evaluation_message = 'warning: length of observations and predictions does not match locations'))}
   
   # keep only observations that are abundances in the first input
   to_keep <- observations>0
   observations <- observations[to_keep]
   predictions  <- predictions[to_keep]
+  locations    <- locations[to_keep,]
+  
+  # create dataframe of locations predictions and observations
+  if(!is.null(scale)){
+    
+    # create dataframe
+    ddata <- data.frame(observations, predictions, locations)
+    
+    # aggregate by scale
+    rescaled_observations <- ddata %>% 
+      mutate(SiteLatitude = plyr::round_any(.$SiteLatitude, scale), 
+             SiteLongitude = plyr::round_any(.$SiteLongitude, scale)) %>% 
+      group_by(SiteLatitude, SiteLongitude) %>% 
+      do(observations = mean(.$observations), 
+         predictions = mean(.$predictions)) %>% 
+      unnest(c('observations', 'predictions'))
+    
+    if(nrow(ddata) == nrow(rescaled_observations)){return(data.frame(Armse = NA, 
+                                                                     Amae  = NA, 
+                                                                     Dintercept = NA, 
+                                                                     Dslope = NA, 
+                                                                     Dpearson = NA, 
+                                                                     Dspearman = NA, 
+                                                                     Psd = NA, 
+                                                                     Pdispersion = NA, 
+                                                                     Pr2 = NA, 
+                                                                     Evaluation_number = NA, 
+                                                                     Scale = if(is.null(scale)){0}else{scale}, 
+                                                                     Evaluation_message = 'warning: no aggregation at this scale'))}
+    
+    observations = rescaled_observations$observations
+    predictions  = rescaled_observations$predictions
+    
+    }
   
   # Linear model between values
   lm_test           <- tryCatch(lm(predictions ~ observations), error = function(e) NA)
@@ -128,9 +176,11 @@ abundance_assessment_metrics <- function(predictions, observations, locations){
     Dslope     <- NA
     Pr2        <- NA
   }
-  cor.test_pearson  <- cor.test(observations, predictions, method = 'pearson')
-  cor.test_spearman <- cor.test(observations, predictions, method = 'spearman')
-  sd_predictions    <- sd(predictions)
+  
+  tryCatch(cor.test(observations, predictions, method = 'pearson'), error = function(e) NA)
+  cor.test_pearson  <-   tryCatch(cor.test(observations, predictions, method = 'pearson'), error = function(e) NA)
+  cor.test_spearman <-   tryCatch(cor.test(observations, predictions, method = 'spearman'), error = function(e) NA)
+  sd_predictions    <- tryCatch(sd(predictions), error = function(e) NA)
   
 
   # Accuracy (A-overall)
@@ -140,12 +190,12 @@ abundance_assessment_metrics <- function(predictions, observations, locations){
   Amae  <- mean(abs((predictions  - observations)), na.rm = T)    # mean absolute error weights all errors the same - if positive the value of observations is > the values of predictions
   
   # Discrimination
-  Dpearson   <- cor.test_pearson$estimate
-  Dspearman  <- cor.test_spearman$estimate
+  if(is.na(cor.test_pearson)){Dpearson <- NA}else{Dpearson <- cor.test_pearson$estimate}
+  if(is.na(cor.test_spearman)){Dspearman <- NA}else{Dspearman  <- cor.test_spearman$estimate}
   
   # Precision
-  Psd         <- sd_predictions
-  Pdispersion <- sd_predictions / sd(observations)
+  if(is.na(sd_predictions)){Psd <- NA}else{Psd <- sd_predictions}
+  if(is.na(sd_predictions)){Pdispersion <- NA}else{Pdispersion <- sd_predictions / sd(observations)}
   
   metric_summary <- data.frame(Armse = Armse, 
                                Amae  = Amae, 
@@ -156,7 +206,9 @@ abundance_assessment_metrics <- function(predictions, observations, locations){
                                Psd = Psd, 
                                Pdispersion = Pdispersion, 
                                Pr2 = Pr2, 
-                               Evaluation_number = length(observations))
+                               Evaluation_number = length(observations), 
+                               Scale = if(is.null(scale)){0}else{scale}, 
+                               Evaluation_message = 'none')
   
   return(metric_summary)
   
