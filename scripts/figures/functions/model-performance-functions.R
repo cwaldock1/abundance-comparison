@@ -388,7 +388,7 @@ aggregate_metrics <- function(plot_data,
          ){
   
   # get metrics
-  metrics_data <- plot_data[metrics]
+  metrics_data <- na.omit(plot_data[metrics])
   
   # match targets to boundarise to express as abosulute difference from 0 (where 0 is perfect)
   metrics_data[,which(names(metrics_data) %in% c('Dslope', 'Pdispersion'))] <- abs(metrics_data[,which(names(metrics_data) %in% c('Dslope', 'Pdispersion'))] - 1)
@@ -404,17 +404,39 @@ aggregate_metrics <- function(plot_data,
     sapply(metrics_data[which(names(metrics_data) %in% c('Armse', 'Amae', 'Dintercept', 'Dslope', 'Psd', 'Pdispersion'))], function(x) invert_range(x))
   
   # create columns for plotting
-  if(length(which(names(metrics_data) %in% c('Armse', 'Amae'))) == 1){plot_data$accuracy <- metrics_data[,which(names(metrics_data) %in% c('Armse', 'Amae'))]}else{
-    plot_data$accuracy <- rowSums(metrics_data[,which(names(metrics_data) %in% c('Armse', 'Amae'))])/length(which(names(metrics_data) %in% c('Armse', 'Amae')))}
+  if(length(which(names(metrics_data) %in% c('Armse', 'Amae'))) == 1){
+    accuracy <- metrics_data[,which(names(metrics_data) %in% c('Armse', 'Amae'))]}else{
+    accuracy <- rowSums(metrics_data[,which(names(metrics_data) %in% c('Armse', 'Amae'))])/length(which(names(metrics_data) %in% c('Armse', 'Amae')))}
   
-  if(length(which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))) == 1){plot_data$discrimination <- metrics_data[,which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))]}else{
-    plot_data$discrimination <- rowSums(metrics_data[,which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))])/length(which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman')))}
+  if(length(which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))) == 1){
+    discrimination <- metrics_data[,which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))]}else{
+    discrimination <- rowSums(metrics_data[,which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman'))])/length(which(names(metrics_data) %in% c('Dintercept', 'Dslope', 'Dpearson', 'Dspearman')))}
   
-  if(length(which(names(metrics_data) %in% c("Pdispersion", "Pr2"))) == 1){plot_data$precision <- metrics_data[,which(names(metrics_data) %in% c("Pdispersion", "Pr2"))]}else{
-    plot_data$precision <- rowSums(metrics_data[,which(names(metrics_data) %in% c("Pdispersion", "Pr2"))])/length(which(names(metrics_data) %in% c("Pdispersion", "Pr2")))}
+  if(length(which(names(metrics_data) %in% c("Pdispersion", "Pr2"))) == 1){precision <- metrics_data[,which(names(metrics_data) %in% c("Pdispersion", "Pr2"))]}else{
+    precision <- rowSums(metrics_data[,which(names(metrics_data) %in% c("Pdispersion", "Pr2"))])/length(which(names(metrics_data) %in% c("Pdispersion", "Pr2")))}
   
   # aggregate the evaluation metrics
-  plot_data$aggregated_evaluation_metrics <- rowSums(metrics_data)/ncol(metrics_data)
+  aggregated_evaluation_metrics <- rowSums(cbind(accuracy, discrimination, precision))/3
+  
+  # index for ANY NAs
+  NA_index <- rowSums(sapply(plot_data[metrics], is.na))>0
+  
+  plot_data$accuracy                      <- NA
+  plot_data$discrimination                <- NA
+  plot_data$precision                     <- NA
+  plot_data$aggregated_evaluation_metrics <- NA
+  
+  if(sum(NA_index)!=0){
+  plot_data$accuracy[-which(NA_index)]                      <- accuracy
+  plot_data$discrimination[-which(NA_index)]                <- discrimination
+  plot_data$precision[-which(NA_index)]                     <- precision
+  plot_data$aggregated_evaluation_metrics[-which(NA_index)] <- aggregated_evaluation_metrics
+  }else{
+    plot_data$accuracy                      <- accuracy
+    plot_data$discrimination                <- discrimination
+    plot_data$precision                     <- precision
+    plot_data$aggregated_evaluation_metrics <- aggregated_evaluation_metrics
+  }
   
   return(plot_data)
   
@@ -575,26 +597,28 @@ rank_plots <- function(plot_data,
 }
 
 
-# function to plot comparison between basic and cross-validations for each metric ---- 
+# function to plot best-models distribution of metrics ---- 
 
-plot_cv_comparison <- function(plot_data, 
-         response = 'all',
-         directory, 
-         name,
-         width, 
-         height,
-         metrics = c('Armse', 'Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Psd', 'Pdispersion', 'Pr2'),
-         targets = list(Armse    = c(0, -10, 10),
-                        Amae     = c(0, -10, 10), 
-                        Dintercept  = c(0, -5, 5), 
-                        Dslope      = c(1,  0, 2), 
-                        Dpearson    = c(1,  0, 1), 
-                        Dspearman   = c(1,  0, 1), 
-                        Psd         = c(0,  0, 10), 
-                        Pdispersion = c(1,  0, 2), 
-                        Pr2         = c(1,  0, 1)), 
-         colours = brewer.pal(4, 'Dark2'), 
-         levels = c('glm', 'gam', 'gbm', 'rf')){ 
+spp_best_assessment_metrics <- function(plot_data, # object after running abundance_assesment_metrics and add_family_plot_column (to be renamed)
+                                        height = 10, 
+                                        width = 8,
+                                        outlier_quantile = 0.05,
+                                        metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2'), 
+                                        targets = list(Armse    = c(0, -10, 10), 
+                                                       Amae     = c(0, -10, 10), 
+                                                       Dintercept  = c(0, -5, 5), 
+                                                       Dslope      = c(1,  0, 2), 
+                                                       Dpearson    = c(1,  0, 1), 
+                                                       Dspearman   = c(1,  0, 1), 
+                                                       Psd         = c(0,  0, 10), 
+                                                       Pdispersion = c(1,  0, 2), 
+                                                       Pr2         = c(1,  0, 1)), 
+                                        levels = c('glm', 'gam', 'gbm', 'rf'),
+                                        colours = c('gray20', 'gray80'),
+                                        directory, 
+                                        name){
+  
+  plots_all <- list()
   
   for(j in 1:length(metrics)){
     
@@ -602,46 +626,81 @@ plot_cv_comparison <- function(plot_data,
     if(j == 1){plot_data$fitted_model <- factor(as.factor(plot_data$fitted_model), levels)}
     print(j)
     
-    fix_outliers <- function(x, level = 0.01){   
-      x[which(x > quantile(x, 1-level, na.rm = T))] <- quantile(x, 1-level, na.rm = T)
-      x[which(x < quantile(x, level, na.rm = T))] <- quantile(x, level, na.rm = T)
-      x[!is.finite(x)] <- NA
-      x
+    # set up data for plotting in loop across all metrics
+    metric_plot_data <- plot_data %>% 
+      dplyr::select(colnames(.)[-which(colnames(.) %in% metrics)], metrics[j]) %>% 
+      mutate(metrics = as.numeric(data.frame(plot_data)[,metrics[j]]))
+    
+    # set boundaries
+    lower = ifelse(metrics[j] %in% c('Dintercept'), T, F)
+    upper = ifelse(metrics[j] %in% c('Dpearson', 'Dspearman', 'Pr2', 'Dintercept'), F, T)
+    t_v = targets[j][[1]]
+    decreasing = ifelse(metrics[j] %in% c('Armse', 'Amae', 'Dintercept', 'Psd'), T, F)
+    
+    # fix extreme values based on boundaries
+    metric_plot_data$metrics <- fix_outliers(metric_plot_data$metrics, outlier_quantile, lower = lower, upper = upper)
+    
+    # make plots
+    require(ggridges)
+    plots_all[[j]] <- ggplot(data = metric_plot_data) + 
+      geom_density_ridges(aes(y = dataset, x = metrics, fill = dataset, col = dataset), alpha = 0.5, 
+                          jittered_points = T, 
+                          position = 'raincloud', 
+                          point_alpha = 0.2, 
+                          point_stroke = 0, 
+                          point_size = 2) + 
+      theme_bw() + 
+      theme(aspect.ratio = 0.15, 
+            panel.grid.major.x = element_blank(), 
+            panel.grid.minor.x = element_blank(), 
+            axis.line.x = element_line(),
+            legend.position = 'none', 
+            panel.border = element_blank(), 
+            panel.grid.major = element_blank(), 
+            axis.text.y = element_blank(), 
+            axis.ticks.y = element_blank(), 
+            axis.title.x = element_blank(), 
+            axis.text.x = element_text(size = 10)) + 
+      ggtitle(metrics[j]) + 
+      ylab(NULL) + 
+      scale_fill_manual(values = colours) + 
+      scale_colour_manual(values = colours) + 
+      xlim(c(min(metric_plot_data$metrics), max(metric_plot_data$metrics)))
+    
+    labels <- metric_plot_data %>% 
+      group_by(dataset) %>% 
+      do(median_value = signif(median(.$metrics, na.rm = T),2)) %>% 
+      unnest() %>% .$median_value
+    
+    # create annotations with median values
+    for(i in 1:length(labels)){
+      plots_all[[j]] <- plots_all[[j]] +
+        annotation_custom(grob = textGrob(label = labels[i], 
+                                                 hjust = -0.2, 
+                                                 gp = gpar(cex = 1, 
+                                                           col = ifelse(i == 1, colours[1], colours[2])),                                          ),
+                                 ymin = ifelse(i==1, 1, 2),      # Vertical position of the textGrob
+                                 ymax = ifelse(i==1, 1, 2),
+                                 xmin = max(metric_plot_data$metrics),         # Note: The grobs are positioned outside the plot area
+                                 xmax = max(metric_plot_data$metrics))
     }
+    # remove panel so that annotations can be viewed
+    gt <- ggplot_gtable(ggplot_build(plots_all[[j]]))
+    gt$layout$clip[gt$layout$name == "panel"] <- "off"
+    plots_all[[j]] <- gt
     
-  # set up data for plotting in loop across all metrics
-  metric_plot_data <- plot_data %>% 
-    group_by(fitted_model, family_grouped, species_name, plot_level) %>% 
-    # subset to when both species are present in a model
-    do(both_present = nrow(.)) %>% unnest() %>% filter(both_present == 2) %>% 
-    left_join(., plot_data) %>% 
-    dplyr::select(colnames(.)[-which(colnames(.) %in% metrics)], metrics[j]) %>% 
-    mutate(metrics = as.numeric(data.frame(.)[,metrics[j]])) #%>% 
-    #mutate(cross_validation_factor = ifelse(grepl('oob', .$cross_validation), 'oob', 'non_oob')) %>% 
-    #select(species_name, plot_level, cross_validation_factor, metrics) %>% 
-    #ungroup() %>% 
-    #pivot_wider(., names_from = cross_validation_factor, values_from =  metrics) %>% 
-    #unnest() %>% 
-    #mutate(RR_metric = log(abs(fix_outliers(.$non_oob, 0.1))) / log(abs(fix_outliers(.$oob, 0.1)))) %>% 
-    #left_join(., plot_data %>% dplyr::select(plot_level, fitted_model, abundance_response_simple)) 
+    
+    
+  }
   
-    
-  plots <- ggplot(data = metric_plot_data) +
-    geom_boxplot(aes(x = plot_level, y = metrics, group = paste0(plot_level, cross_validation), fill = cross_validation)) + 
-    facet_wrap(~fitted_model, scales= 'free') + 
-    theme(aspect.ratio = 0.75, 
-          legend.position = 'right', 
-          axis.text.x = element_text(angle = 45, hjust = 1), 
-          axis.title.y = element_blank()) + 
-    scale_fill_manual('', values = colours) + 
-    ylab(metrics[[j]])
+  # combine plots
   
   dir.create(directory, recursive = T) 
-  pdf(file = paste0(directory, '/', metrics[j],'.pdf'), width = 14, height = 10)
-  print(plots)
+  pdf(file = paste0(directory, '/', name,'.pdf'), width = width, height = height, useDingbats = F)
+  all_plots <- do.call("grid.arrange", c(plots_all, ncol=1))
+  print(all_plots)
   dev.off()
   
-  }
-  
-  }
+}
+
 
