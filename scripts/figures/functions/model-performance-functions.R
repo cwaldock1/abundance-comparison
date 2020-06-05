@@ -916,3 +916,87 @@ spp_best_assessment_metrics_scale <- function(plot_data, # object after running 
   
 }
 
+
+# correlation plots amongst best models ----
+
+correlation_plots <- function(plot_data, # object after running abundance_assesment_metrics and add_family_plot_column (to be renamed)
+                                              height = 5, 
+                                              width = 10,
+                                              outlier_quantile = 0.05,
+                                              metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2'), 
+                                              targets = list(Armse    = c(0, -10, 10), 
+                                                             Amae     = c(0, -10, 10), 
+                                                             Dintercept  = c(0, -5, 5), 
+                                                             Dslope      = c(1,  0, 2), 
+                                                             Dpearson    = c(1,  0, 1), 
+                                                             Dspearman   = c(1,  0, 1), 
+                                                             Psd         = c(0,  0, 10), 
+                                                             Pdispersion = c(1,  0, 2), 
+                                                             Pr2         = c(1,  0, 1)), 
+                                              levels = c('glm', 'gam', 'gbm', 'rf'),
+                                              directory, 
+                                              name){
+  
+
+require(ggcorrplot)
+for(j in 1:length(metrics)){
+  
+  # set up levels
+  if(j == 1){plot_data$fitted_model <- factor(as.factor(plot_data$fitted_model), levels)}
+  print(j)
+  
+  # set up data for plotting in loop across all metrics
+  metric_plot_data <- plot_data %>% 
+    mutate(metrics = as.numeric(data.frame(plot_data)[,metrics[j]]))
+  
+  # set boundaries
+  lower = ifelse(metrics[j] %in% c('Dintercept'), T, F)
+  upper = ifelse(metrics[j] %in% c('Dpearson', 'Dspearman', 'Pr2', 'Dintercept'), F, T)
+  t_v = targets[j][[1]]
+  decreasing = ifelse(metrics[j] %in% c('Armse', 'Amae', 'Dintercept', 'Psd'), T, F)
+  
+  # fix extreme values based on boundaries
+  metric_plot_data[, which(colnames(metric_plot_data) == metrics[j])] <- fix_outliers(metric_plot_data$metrics, outlier_quantile, lower = lower, upper = upper)
+  
+}
+
+# plot correlations
+pairwise_metrics <- metric_plot_data[metrics]
+pair_mat <- cor(pairwise_metrics, method = 'spearman')
+allmetrics_plot <- ggcorrplot(pair_mat, 
+           hc.order = TRUE, 
+           type = "lower",
+           lab = TRUE,
+           colors = c(colours[1], 'white', colours[4])) + 
+  theme(panel.grid = element_blank(), 
+        legend.position = 'none', 
+        panel.border = element_rect(fill = 'transparent')) + 
+  ggtitle('all metrics')
+
+# plot aggregated metrics
+pairwise_agg_metrics <- metric_plot_data[c('accuracy', 'discrimination', 'precision', 'aggregated_evaluation_metrics')]
+pairwise_agg_metrics <- pairwise_agg_metrics %>% rename(all = aggregated_evaluation_metrics)
+pair_mat_agg <- cor(pairwise_agg_metrics, method = 'spearman')
+aggmetrics_plot <- ggcorrplot(pair_mat_agg, 
+                              hc.order = TRUE, 
+                              type = "lower",
+                              lab = TRUE,
+                              colors = c(colours[1], 'white', colours[4])) + 
+  theme(panel.grid = element_blank(), 
+        legend.position = 'none', 
+        panel.border = element_rect(fill = 'transparent')) + 
+  ggtitle('aggregated metrics')
+
+dir.create(path = directory, recursive = T)
+pdf(file = paste0(directory, '/', name, '.pdf'), width = width, height = height)
+grid.arrange(allmetrics_plot, aggmetrics_plot, nrow = 1)
+dev.off()
+
+
+}
+
+
+
+
+
+

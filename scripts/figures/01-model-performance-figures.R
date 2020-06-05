@@ -92,22 +92,6 @@ ggplot(model_summaries) +
 dev.off()
 
 
-# full plots across all species and model scenarios for supporting materials ----
-
-# ### REMOVE THIS PLOTTING PROCEEDURE AND FUNCTION AND ADAPT FOR EVALUATING SPECIES TRAITS AND ABUNDANCE EFFECTS ON MODEL PERFORMANCE
-# nested_assessments <- all_assessments %>% 
-#   group_by(dataset, 
-#            abundance_response, 
-#            cross_validation) %>% 
-#   nest()
-# 
-# lapply(1:nrow(nested_assessments), 
-#        function(x){
-#          all_model_plots(plot_data = nested_assessments$data[[x]], 
-#                          directory = paste0('figures/all_model_plots/', 
-#                                             nested_assessments$cross_validation[x], '/', 
-#                                             nested_assessments$abundance_response[x]))})
-
 # plot of all metrics for each individual model type ----
 
 nested_assessments <- all_assessments %>% 
@@ -324,11 +308,45 @@ best_model_assessments %>%
                               colours = c('black', 'gray50'))
 
 
+# correlation plots amongst best models ----
 
+# plots
+best_model_assessments %>% 
+  filter(cross_validation == 'basic', dataset == 'rls') %>% 
+  correlation_plots(plot_data = ., 
+                    metrics = metrics, 
+                    targets = targets, 
+                    directory = 'figures/model-performance-figures/correlation-metrics', 
+                    name = 'rls_basic', 
+                    width = 10, height = 5)
 
+# plots
+best_model_assessments %>% 
+  filter(cross_validation == 'cv', dataset == 'rls') %>% 
+  correlation_plots(plot_data = ., 
+                    metrics = metrics, 
+                    targets = targets, 
+                    directory = 'figures/model-performance-figures/correlation-metrics', 
+                    name = 'rls_cv', 
+                    width = 10, height = 5)
 
-
-
-
+# plots
+best_model_assessments %>% 
+  filter(cross_validation == 'basic', dataset == 'bbs') %>% 
+  correlation_plots(plot_data = ., 
+                    metrics = metrics, 
+                    targets = targets, 
+                    directory = 'figures/model-performance-figures/correlation-metrics', 
+                    name = 'bbs_basic', 
+                    width = 10, height = 5)
+# plots
+best_model_assessments %>% 
+  filter(cross_validation == 'cv', dataset == 'bbs') %>% 
+  correlation_plots(plot_data = ., 
+                    metrics = metrics, 
+                    targets = targets, 
+                    directory = 'figures/model-performance-figures/correlation-metrics', 
+                    name = 'bbs_cv', 
+                    width = 10, height = 5)
 
 
