@@ -234,6 +234,27 @@ nrow = 1)
 dev.off()
 
 
+# create table of scale by model performance values for best models ----
+
+writexl::write_xlsx(
+best_model_assessments %>% 
+  select(-Armse, -Psd) %>% 
+  group_by(dataset, cross_validation, spatial_scale) %>% 
+  summarise_at(vars(c(Amae:Pr2)), list(mean, median, sd)) %>% 
+  ungroup() %>% 
+  pivot_longer(data = .,cols = Amae_fn1:Pr2_fn3, names_to = 'metric', values_to = 'value') %>% 
+  mutate(measure = ifelse(grepl('fn1', metric), 'mean', 
+                          ifelse(grepl('fn2', metric), 'median', 'sd')), 
+         metric = gsub('_fn1|_fn2|_fn3', '', metric)) %>% 
+  pivot_wider(., names_from = measure, values_from = value) %>% 
+  mutate(spatial_scale = as.numeric(gsub('spatial_scale_', '', spatial_scale))) %>% 
+  .[order(.$dataset, .$cross_validation, .$spatial_scale),] %>% 
+  pivot_wider(., names_from = c(spatial_scale), values_from = c(mean, median, sd)) %>% 
+  ungroup() %>% 
+  mutate_at(vars(c(mean_0.1:sd_50)), signif, digits = 2),
+path = 'figures/scale-performance-figures/metric_summary_table.xlsx')
+  
+  
 
 
 

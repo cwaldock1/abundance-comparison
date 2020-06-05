@@ -104,6 +104,10 @@ clean_levels <- function(data_input){
 
 # abundance_assessment_metrics: calculates assessment metrics ----
 
+# predictions <- clean_files %>% rowwise() %>% .$validation_predict_mean %>% .[[1]]
+# observations <- clean_files %>% rowwise() %>% .$validation_observed_mean %>% .[[1]]
+# locations <- clean_files %>% rowwise() %>% .$validation_locations %>% .[[1]]
+
 abundance_assessment_metrics <- function(predictions, observations, locations, scale = NULL){
   
   # check lengths are the same
@@ -141,18 +145,18 @@ abundance_assessment_metrics <- function(predictions, observations, locations, s
          predictions = mean(.$predictions)) %>% 
       unnest(c('observations', 'predictions'))
     
-    if(nrow(ddata) == nrow(rescaled_observations)){return(data.frame(Armse = NA, 
-                                                                     Amae  = NA, 
-                                                                     Dintercept = NA, 
-                                                                     Dslope = NA, 
-                                                                     Dpearson = NA, 
-                                                                     Dspearman = NA, 
-                                                                     Psd = NA, 
-                                                                     Pdispersion = NA, 
-                                                                     Pr2 = NA, 
-                                                                     Evaluation_number = NA, 
-                                                                     Scale = if(is.null(scale)){0}else{scale}, 
-                                                                     Evaluation_message = 'warning: no aggregation at this scale'))}
+    #if(nrow(ddata) == nrow(rescaled_observations) | nrow(rescaled_observations) == 1){return(data.frame(Armse = NA, 
+    #                                                                 Amae  = NA, 
+    #                                                                 Dintercept = NA, 
+    #                                                                 Dslope = NA, 
+    #                                                                 Dpearson = NA, 
+    #                                                                 Dspearman = NA, 
+    #                                                                 Psd = NA, 
+    #                                                                 Pdispersion = NA, 
+    #                                                                 Pr2 = NA, 
+    #                                                                 Evaluation_number = NA, 
+    #                                                                 Scale = if(is.null(scale)){0}else{scale}, 
+    #                                                                 Evaluation_message = 'warning: no aggregation at this scale'))}
     
     observations = rescaled_observations$observations
     predictions  = rescaled_observations$predictions

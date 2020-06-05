@@ -478,8 +478,8 @@ plot_all_aggregated <- function(plot_data,
              fitted_model,
              metric) %>% 
     do(species_median = median(.$metric_mean, na.rm = T), 
-       species_upr    = quantile(.$metric_mean, 0.75, na.rm = T), 
-       species_lwr    = quantile(.$metric_mean, 0.25, na.rm = T)) %>% 
+       species_upr    = quantile(.$metric_mean, 0.95, na.rm = T), 
+       species_lwr    = quantile(.$metric_mean, 0.05, na.rm = T)) %>% 
     unnest(c(species_median, species_upr, species_lwr))
     
   
@@ -521,6 +521,123 @@ print(plot_1)
 dev.off()
 
 }
+
+# function to plot aggregated metrics across scales ----
+
+plot_all_aggregated_spatial_scale <- function(plot_data,
+                                directory,
+                                name,
+                                width, 
+                                height,
+                                metrics = c('Armse', 'Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Psd', 'Pdispersion', 'Pr2'),
+                                targets = list(Armse    = c(0, -10, 10),
+                                               Amae     = c(0, -10, 10), 
+                                               Dintercept  = c(0, -5, 5), 
+                                               Dslope      = c(1,  0, 2), 
+                                               Dpearson    = c(1,  0, 1), 
+                                               Dspearman   = c(1,  0, 1), 
+                                               Psd         = c(0,  0, 10), 
+                                               Pdispersion = c(1,  0, 2), 
+                                               Pr2         = c(1,  0, 1)), 
+                                levels = c('glm', 'gam', 'gbm', 'rf')){
+  
+  plot_data_DT <- data.table(plot_data %>% 
+                               gather(., key = metric, value = value,  c(accuracy, discrimination, precision)) %>% 
+                               filter(Evaluation_message == 'none') %>% 
+                               group_by(dataset, spatial_scale, abundance_response, fitted_model, metric, species_name))
+  
+  plot_data_DT[,metric_mean := mean(value, na.rm = T),
+               by = c('dataset',
+                      'spatial_scale',
+                      'abundance_response',
+                      'fitted_model',
+                      'metric',
+                      'species_name')]
+  
+  plot_data_DT <- unique(plot_data_DT[,c('dataset',
+                                         'spatial_scale',
+                                         'abundance_response',
+                                         'fitted_model',
+                                         'metric',
+                                         'species_name', 
+                                         'metric_mean'),])
+  
+  key <- c('dataset',
+           'spatial_scale',
+           'abundance_response',
+           'fitted_model',
+           'metric')
+  plot_data_DT[,species_median := median(metric_mean, na.rm = T), by = key]
+  plot_data_DT[,species_upr := quantile(metric_mean, 0.95, na.rm = T),by = key]
+  plot_data_DT[,species_lwr := quantile(metric_mean, 0.05, na.rm = T),by = key]
+  
+  metric_plot_data <- plot_data_DT %>% 
+    select(spatial_scale,
+           metric,
+           dataset,
+           abundance_response,
+           fitted_model, 
+           species_median, 
+           species_upr, 
+           species_lwr) %>% 
+    unique() %>% 
+    as_data_frame()
+  
+  metric_plot_data$fitted_model <- factor(as.factor(metric_plot_data$fitted_model), levels)
+  
+  metric_plot_data$spatial_scale <- as.numeric(gsub('spatial_scale_', '', metric_plot_data$spatial_scale))
+  
+  
+  bbs_plot <- ggplot(data = metric_plot_data %>% filter(dataset == 'bbs')) + 
+    geom_point(aes(x = spatial_scale, 
+                   y = species_median, 
+                   col = fitted_model), 
+               size = 2) +
+    geom_line(aes(x = spatial_scale, 
+                   y = species_median, 
+                   col = fitted_model), 
+              size = 1.5)  + 
+    facet_wrap(~ metric + abundance_response) + 
+    theme_classic() + 
+    xlab('spatial scale (degrees)') + 
+    scale_fill_manual('model', values = colours) + 
+    scale_colour_manual('model', values = colours) + 
+    theme(aspect.ratio = 0.75, 
+          legend.position = 'bottom') +
+    ylab('relative performance') + 
+    ylim(0,1)
+  
+  rls_plot <- ggplot(data = metric_plot_data %>% filter(dataset == 'rls')) + 
+    geom_point(aes(x = spatial_scale, 
+                   y = species_median, 
+                   col = fitted_model), 
+               size = 2) +
+    geom_line(aes(x = spatial_scale, 
+                  y = species_median, 
+                  col = fitted_model), 
+              size = 1.5)  + 
+    facet_wrap(~ metric + abundance_response) + 
+    theme_classic() + 
+    xlab('spatial scale (degrees)') + 
+    scale_fill_manual('model', values = colours) + 
+    scale_colour_manual('model', values = colours) + 
+    theme(aspect.ratio = 0.75, 
+          legend.position = 'bottom') +
+    ylab('relative performance') + 
+    ylim(0,1)
+  
+  
+  dir.create(directory, recursive = T) 
+  pdf(file = paste0(directory, '/', 'bbs', '_', name,'.pdf'), width = width, height = height)
+  print(bbs_plot)
+  dev.off()
+  pdf(file = paste0(directory, '/', 'rls', '_', name,'.pdf'), width = width, height = height)
+  print(rls_plot)
+  dev.off()
+  
+  
+}
+
 
 # function to plot model rank counts ----
 
@@ -703,4 +820,99 @@ spp_best_assessment_metrics <- function(plot_data, # object after running abunda
   
 }
 
+# function to plot best-models distribution of metrics across scales ---- 
+
+spp_best_assessment_metrics_scale <- function(plot_data, # object after running abundance_assesment_metrics and add_family_plot_column (to be renamed)
+                                              selected_dataset, 
+                                              height = 10, 
+                                        width = 8,
+                                        outlier_quantile = 0.05,
+                                        metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2'), 
+                                        targets = list(Armse    = c(0, -10, 10), 
+                                                       Amae     = c(0, -10, 10), 
+                                                       Dintercept  = c(0, -5, 5), 
+                                                       Dslope      = c(1,  0, 2), 
+                                                       Dpearson    = c(1,  0, 1), 
+                                                       Dspearman   = c(1,  0, 1), 
+                                                       Psd         = c(0,  0, 10), 
+                                                       Pdispersion = c(1,  0, 2), 
+                                                       Pr2         = c(1,  0, 1)), 
+                                        levels = c('glm', 'gam', 'gbm', 'rf'),
+                                        colours = c('gray20', 'gray80'),
+                                        directory, 
+                                        name){
+  
+  plots_all <- list()
+  
+  for(j in 1:length(metrics)){
+    
+    # set up levels
+    if(j == 1){plot_data$fitted_model <- factor(as.factor(plot_data$fitted_model), levels)}
+    print(j)
+    
+    # set up data for plotting in loop across all metrics
+    metric_plot_data <- plot_data %>% 
+      dplyr::select(colnames(.)[-which(colnames(.) %in% metrics)], metrics[j]) 
+    
+    # set boundaries
+    lower = ifelse(metrics[j] %in% c('Dintercept'), T, F)
+    upper = ifelse(metrics[j] %in% c('Dpearson', 'Dspearman', 'Pr2', 'Dintercept'), F, T)
+    t_v = targets[j][[1]]
+    decreasing = ifelse(metrics[j] %in% c('Armse', 'Amae', 'Dintercept', 'Psd'), T, F)
+    
+    # remove outliers
+    metric_plot_data$metrics <- fix_outliers(as.numeric(metric_plot_data[metrics[j]][[1]]), outlier_quantile, lower = lower, upper = upper)
+    
+    # metric_plot_data <- metric_plot_data %>%  
+    #   group_by(spatial_scale, cross_validation, dataset) %>% 
+    #   mutate(metrics_median = median(metrics), 
+    #          metrics_upr = quantile(metrics, 0.95), 
+    #          metrics_lwr = quantile(metrics, 0.05)) %>% 
+    #   select(spatial_scale, cross_validation, dataset, metrics_median, metrics_upr, metrics_lwr) %>% 
+    #   unique()
+    
+    # convert spatial scale to numeric
+    metric_plot_data$spatial_scale <- gsub('spatial_scale_', '', metric_plot_data$spatial_scale)
+    
+    metric_plot_data$spatial_scale <- factor(metric_plot_data$spatial_scale, levels = c(0.1, 1, 5, 10, 20, 35, 50))
+    
+    # make plots
+    require(viridis)
+   plots_all[[j]] <- 
+      ggplot(data = metric_plot_data) + 
+      geom_boxplot(aes(x = spatial_scale, y = metrics, fill = dataset, group = paste0(dataset, spatial_scale)), lwd = 0.5) +
+     geom_hline(aes(yintercept = t_v[1]), lty = 2, colour = 'gray50') +
+      theme_bw() + 
+        theme(aspect.ratio = 0.15, 
+            panel.grid.major.x = element_blank(), 
+            panel.grid.minor.x = element_blank(), 
+            axis.line.x = element_line(),
+            legend.position = 'none', 
+            panel.border = element_blank(), 
+            panel.grid.major = element_blank(), 
+            #axis.text.y = element_blank(), 
+            #axis.ticks.y = element_blank(), 
+            axis.title.x = element_blank(), 
+            axis.text.x = element_text(size = 10)) + 
+      #ggtitle(metrics[j]) + 
+      ylab(NULL) + 
+      scale_fill_manual(values = colours)
+    
+  }
+  
+  # combine plots
+  
+  dir.create(directory, recursive = T) 
+  pdf(file = paste0(directory, '/', name,'.pdf'), width = width, height = height, useDingbats = F)
+  all_plots <- do.call("grid.arrange", c(plots_all, ncol=1))
+  print(all_plots)
+  dev.off()
+  
+  pdf(file = paste0(directory, '/', 'legend','.pdf'), width = width, height = height, useDingbats = F)
+  print(plot(get_legend(ggplot(data = metric_plot_data) + 
+                    geom_boxplot(aes(x = spatial_scale, y = metrics, fill = dataset, group = paste0(dataset, spatial_scale)), lwd = 0.5) + 
+                    scale_fill_manual(values = colours))))
+  dev.off()
+  
+}
 

@@ -213,28 +213,35 @@ plot_data = all_assessments_relative$data[[1]]
 
 # aggreagte basic models
 plot_all_aggregated(all_assessments_relative$data[[1]] %>% 
-  group_by(dataset) %>% 
-  nest() %>% 
-  mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(.,
-                                                                  metrics = metrics))) %>% 
-  .$metric_aggregation %>% 
-  do.call(rbind, .) %>% 
-    mutate(dataset = all_assessments_relative$data[[1]]$dataset), 
-  directory = 'figures/model-performance-figures/all_model_rescaled', 
-  #colours = colours,
-  name = 'basic', 
-  levels = c('glm', 'gam', 'gbm', 'rf'))
+                      # the species name grouping here is essential otherwise the rankings occur across all species and model combinations
+                      group_by(dataset, species_name) %>% 
+                      nest() %>% 
+                      mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(.,
+                                                                                      metrics = metrics))) %>% 
+                      .$metric_aggregation %>% 
+                      do.call(rbind, .) %>% 
+                      mutate(dataset = all_assessments_relative$data[[1]]$dataset, 
+                             species_name = all_assessments_relative$data[[1]]$species_name), 
+                    directory = 'figures/model-performance-figures/all_model_rescaled', 
+                    #colours = colours,
+                    name = 'basic', 
+                    levels = c('glm', 'gam', 'gbm', 'rf'))
 
 # aggregate oob_cv models
 plot_all_aggregated(all_assessments_relative$data[[2]] %>% 
-                      group_by(dataset) %>% 
+                      # the species name grouping here is essential otherwise the rankings occur across all species and model combinations
+                      group_by(dataset, species_name) %>% 
                       nest() %>% 
-                      mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(.))) %>% 
+                      mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(.,
+                                                                                      metrics = metrics))) %>% 
                       .$metric_aggregation %>% 
                       do.call(rbind, .) %>% 
-                      mutate(dataset = all_assessments_relative$data[[2]]$dataset), 
+                      mutate(dataset = all_assessments_relative$data[[2]]$dataset, 
+                             species_name = all_assessments_relative$data[[2]]$species_name), 
                     directory = 'figures/model-performance-figures/all_model_rescaled', 
-                    name = 'cv')
+                    #colours = colours,
+                    name = 'cv', 
+                    levels = c('glm', 'gam', 'gbm', 'rf'))
 
 
 # plots of ranked models ----
