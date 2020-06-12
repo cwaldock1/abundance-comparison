@@ -449,6 +449,7 @@ plot_all_aggregated <- function(plot_data,
                                 name,
                                 width, 
                                 height,
+                                colours,
          metrics = c('Armse', 'Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Psd', 'Pdispersion', 'Pr2'),
          targets = list(Armse    = c(0, -10, 10),
                         Amae     = c(0, -10, 10), 
@@ -484,18 +485,32 @@ plot_all_aggregated <- function(plot_data,
     
   
   metric_plot_data$fitted_model <- factor(as.factor(metric_plot_data$fitted_model), levels)
+  metric_plot_data$group        <- paste0(metric_plot_data$abundance_response, '  ', metric_plot_data$fitted_model)
+  if(length(unique(metric_plot_data$fitted_model)) == 5){
+  metric_plot_data$group <- factor(metric_plot_data$group, levels = unique(c(metric_plot_data$group[grep(levels[1], metric_plot_data$group)], 
+                                                                      metric_plot_data$group[grep(levels[2], metric_plot_data$group)], 
+                                                                      metric_plot_data$group[grep(levels[3], metric_plot_data$group)],
+                                                                      metric_plot_data$group[grep(levels[4], metric_plot_data$group)], 
+                                                                      metric_plot_data$group[grep(levels[5], metric_plot_data$group)])))
+  }else{
+    metric_plot_data$group <- factor(metric_plot_data$group, levels = unique(c(metric_plot_data$group[grep(levels[1], metric_plot_data$group)], 
+                                                                               metric_plot_data$group[grep(levels[2], metric_plot_data$group)], 
+                                                                               metric_plot_data$group[grep(levels[3], metric_plot_data$group)],
+                                                                               metric_plot_data$group[grep(levels[4], metric_plot_data$group)])))
+    
+  }
   
   plot_1 <- ggplot(data = metric_plot_data) + 
     geom_point(aes(x = abundance_response, 
                    y = species_median, 
-                   group = paste0(abundance_response, '  ', fitted_model),
+                   group = group,
                    col = fitted_model),
                size = 3,
                position=position_dodge(width=0.75)) + 
     geom_linerange(aes(x = abundance_response, 
                        ymin = species_lwr,
                        ymax = species_upr,
-                       group = paste0(abundance_response, '  ', fitted_model),
+                       group = group,
                        col = fitted_model), 
                    position=position_dodge(width=0.75)) +
     #geom_boxplot(aes(x = abundance_response, 

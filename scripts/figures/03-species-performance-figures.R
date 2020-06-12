@@ -11,6 +11,8 @@ detach("package:raster", unload = TRUE)
 # source functions and targets ----
 
 source('scripts/figures/functions/model-performance-functions.R')
+source('scripts/figures/functions/species-performance-functions.R')
+
 
 colours = colorRampPalette(c("#0099CC80","#9ECAE1","#58BC5D","#EEF559","#FF9933","red"), bias = 1)(4)
 
@@ -87,7 +89,7 @@ all_assessments_relative <- all_assessments %>%
   dplyr::select(-data) %>% 
   ungroup()
 
-#
+
 # fit model across all species ----
 
 bbs_basic <- all_assessments_relative %>% 

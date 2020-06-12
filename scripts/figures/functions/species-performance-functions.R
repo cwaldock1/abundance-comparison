@@ -3,9 +3,9 @@
 
 # produce plots from outputs of linear models ----
 
-input_data <- bbs_basic
-directory  <- paste0('figures/species-performance-figures/', unique(input_data$cross_validation_2), '/')
-species_traits <- c('mean_abundance', 'frequency')
+#input_data <- bbs_basic
+#directory  <- paste0('figures/species-performance-figures/', unique(input_data$cross_validation_2), '/')
+#species_traits <- c('mean_abundance', 'frequency')
 
 plot_trait_models <- function(input_data, 
                               directory, 
@@ -121,30 +121,51 @@ model_discrimination <- lm(discrimination ~ abundance * frequency * observations
 model_precision      <- lm(precision      ~ abundance * frequency * observations, data = plot_data, na.action = 'na.fail')
 
 # perform model selection
+dredge_accuracy       <- dredge(model_accuracy)
+dredge_discrimination <- dredge(model_discrimination)
+dredge_precision      <- dredge(model_precision)
+
+# get raw models
+models_accuracy <- get.models(model.sel(dredge_accuracy, fit = T), subset = delta < 2)
+models_discrimination <- get.models(model.sel(dredge_discrimination, fit = T), subset = delta < 2)
+models_precision <- get.models(model.sel(dredge_precision, fit = T), subset = delta < 2)
+
+# get r2
+r2_accuracy       <- mean(unlist(lapply(models_accuracy, function(x) summary(x)$r.squared)))
+r2_discrimination <- mean(unlist(lapply(models_discrimination, function(x) summary(x)$r.squared)))
+r2_precision      <- mean(unlist(lapply(models_precision, function(x) summary(x)$r.squared)))
+
+# get model averages
 avg_accuracy       <- model.avg(dredge(model_accuracy), subset = delta < 2, fit = T)
 avg_discrimination <- model.avg(dredge(model_discrimination), subset = delta < 2, fit = T)
 avg_precision      <- model.avg(dredge(model_precision), subset = delta < 2, fit = T)
+
 
 # create table of coefficients and save
 accuracy_coef <- data.frame(summary(avg_accuracy)$coefmat.full)
 accuracy_coef$evaluation <- 'accuracy'
 accuracy_coef$term <- rownames(accuracy_coef)
+accuracy_coef$r2   <- r2_accuracy
 discrimination_coef <- data.frame(summary(avg_discrimination)$coefmat.full)
 discrimination_coef$evaluation <- 'discrimination'
 discrimination_coef$term <- rownames(discrimination_coef)
+discrimination_coef$r2   <- r2_discrimination
 precision_coef <- data.frame(summary(avg_precision)$coefmat.full)
 precision_coef$evaluation <- 'precision'
 precision_coef$term <- rownames(precision_coef)
+precision_coef$r2   <- r2_precision
+
 
 model_table <- rbind(accuracy_coef, discrimination_coef, precision_coef) %>% 
   select(-Adjusted.SE) %>% 
   filter(term != '(Intercept)') %>% 
-  rename(coef = 'Estimate', se = 'Std..Error', `z-value` = z.value, `p-value` = Pr...z..) %>% 
-  select(evaluation, term, coef, se, `z-value`, `p-value`) %>% 
+  rename(coef = 'Estimate', se = 'Std..Error', `z-value` = z.value, `p-value` = Pr...z.., `r-squared` = r2) %>% 
+  select(evaluation, term, coef, se, `z-value`, `p-value`, `r-squared`) %>% 
   mutate(coef = signif(coef, 2), 
          se   = signif(se, 2), 
-         `z-value` = round(`z-value`, 2), 
-         `p-value` = round(`p-value`, 3))
+         `z-value`   = round(`z-value`, 2), 
+         `p-value`   = round(`p-value`, 3), 
+         `r-squared` = signif(`r-squared`, 2))
 
 dir.create(directory, recursive = T)
 writexl::write_xlsx(model_table, path = paste0(directory, '/', name,'.xlsx'))

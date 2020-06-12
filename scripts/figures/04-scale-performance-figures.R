@@ -255,6 +255,62 @@ best_model_assessments %>%
 path = 'figures/scale-performance-figures/metric_summary_table.xlsx')
   
   
+# estimate percentage change between 0.1° and 10° for manuscript text
+writexl::write_xlsx(
+list(best_model_assessments %>% 
+  select(-Armse, -Psd) %>% 
+  group_by(dataset, cross_validation, spatial_scale) %>% 
+  summarise_at(vars(c(Amae:Pr2)), list(mean)) %>% 
+  ungroup() %>% 
+  pivot_longer(data = .,cols = Amae:Pr2, names_to = 'metric', values_to = 'value') %>% 
+  pivot_wider(., names_from = spatial_scale, values_from = value) %>% 
+  mutate(baseline = spatial_scale_0.1) %>% 
+  mutate(spatial_scale_0.1 = ((spatial_scale_0.1 - baseline) / baseline)*100, 
+         spatial_scale_1 = ((spatial_scale_1 - baseline) / baseline)*100, 
+         spatial_scale_5 = ((spatial_scale_5 - baseline) / baseline)*100, 
+         spatial_scale_10 = ((spatial_scale_10 - baseline) / baseline)*100, 
+         spatial_scale_20 = ((spatial_scale_20 - baseline) / baseline)*100, 
+         spatial_scale_35 = ((spatial_scale_35 - baseline) / baseline)*100, 
+         spatial_scale_50 = ((spatial_scale_50 - baseline) / baseline)*100) %>% 
+  group_by(cross_validation, metric) %>% 
+  summarise_at(vars(c(spatial_scale_0.1:baseline)), list(mean)) %>% 
+  select(-baseline) %>% 
+  pivot_longer(data = ., cols = spatial_scale_0.1:spatial_scale_50, names_to = 'spatial_scale', values_to = 'value') %>% 
+  mutate(spatial_scale = as.numeric(gsub('spatial_scale_', '', spatial_scale))) %>% 
+  .[order(.$cross_validation, .$spatial_scale),] %>% 
+  pivot_wider(., names_from = 'spatial_scale', values_from = 'value') %>% 
+  mutate_at(vars(c(`0.1`:`50`)), signif, digits = 2), 
+  
+  best_model_assessments %>% 
+    select(-Armse, -Psd) %>% 
+    group_by(dataset, cross_validation, spatial_scale) %>% 
+    summarise_at(vars(c(Amae:Pr2)), list(mean)) %>% 
+    ungroup() %>% 
+    pivot_longer(data = .,cols = Amae:Pr2, names_to = 'metric', values_to = 'value') %>% 
+    pivot_wider(., names_from = spatial_scale, values_from = value) %>% 
+    mutate(baseline = spatial_scale_0.1) %>% 
+    mutate(spatial_scale_0.1 = ((spatial_scale_0.1 - baseline) / baseline)*100, 
+           spatial_scale_1 = ((spatial_scale_1 - baseline) / baseline)*100, 
+           spatial_scale_5 = ((spatial_scale_5 - baseline) / baseline)*100, 
+           spatial_scale_10 = ((spatial_scale_10 - baseline) / baseline)*100, 
+           spatial_scale_20 = ((spatial_scale_20 - baseline) / baseline)*100, 
+           spatial_scale_35 = ((spatial_scale_35 - baseline) / baseline)*100, 
+           spatial_scale_50 = ((spatial_scale_50 - baseline) / baseline)*100) %>% 
+    group_by(dataset, cross_validation, metric) %>% 
+    summarise_at(vars(c(spatial_scale_0.1:baseline)), list(mean)) %>% 
+    select(-baseline) %>% 
+    pivot_longer(data = ., cols = spatial_scale_0.1:spatial_scale_50, names_to = 'spatial_scale', values_to = 'value') %>% 
+    mutate(spatial_scale = as.numeric(gsub('spatial_scale_', '', spatial_scale))) %>% 
+    .[order(.$cross_validation, .$spatial_scale),] %>% 
+    pivot_wider(., names_from = 'spatial_scale', values_from = 'value') %>% 
+    mutate_at(vars(c(`0.1`:`50`)), signif, digits = 2)),
+path = 'figures/scale-performance-figures/metric_percentage_table.xlsx')
+
+
+
+
+
+
 
 
 

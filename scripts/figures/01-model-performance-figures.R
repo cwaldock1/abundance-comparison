@@ -308,6 +308,72 @@ best_model_assessments %>%
                               colours = c('black', 'gray50'))
 
 
+# plots of rescaled values comparing between models including 'best' ----
+
+# find the best model for a species
+best_models <- all_assessments %>% 
+  select(-Armse, -Psd) %>% 
+  # estimate the relative metric performance within a cross validation and dataset
+  group_by(cross_validation_2, dataset) %>% 
+  nest() %>% 
+  mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(., 
+                                                                  metrics = c('Amae', 'Dintercept', 'Dslope', 
+                                                                              'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
+  .$metric_aggregation %>% 
+  do.call(rbind, .) %>% 
+  na.omit(.) %>% 
+  # find the best fitting model for each species within each fitted_model
+  group_by(species_name, cross_validation) %>% 
+  do(best_model = .$plot_level[which.max(.$aggregated_evaluation_metrics)]) %>% 
+  unnest(cols = c('best_model')) %>% 
+  mutate(dataset = gsub('_basic|_oob_cv','', .$cross_validation),
+         cross_validation = gsub('bbs_|rls_', '', .$cross_validation), 
+         plot_level = .$best_model) %>% 
+  mutate(dataset = plyr::revalue(.$dataset, c(bbs_cv = 'bbs', rls_cv = 'rls')))
+
+# filter assessment metrics by best model and species combinations
+best_model_assessments <- left_join(best_models , 
+                                    all_assessments %>% mutate(cross_validation = .$cross_validation_2))
+
+# rbind together the best models with the rest of the model assessments
+best_model_assessments$fitted_model = 'optimal'
+all_assessments_best <- bind_rows(best_model_assessments, all_assessments)
+
+
+# produce relative rankings in the assessment metrics
+all_assessments_best_relative <- all_assessments_best %>% 
+  group_by(dataset, cross_validation_2, species_name) %>% 
+  nest() %>% 
+  mutate(metric_aggregation = purrr::map(data, 
+                                         ~aggregate_metrics(., 
+                                                            metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
+  unnest(metric_aggregation) %>% 
+  dplyr::select(-data) %>% 
+  ungroup()
+
+# group for plotting
+all_assessments_best_relative_plot <- all_assessments_best_relative %>% 
+  group_by(cross_validation_2) %>% 
+  nest()
+
+plot_data = all_assessments_relative$data[[1]]
+
+# aggreagte basic models
+plot_all_aggregated(all_assessments_best_relative_plot$data[[1]], 
+                    directory = 'figures/model-performance-figures/all_model_rescaled_with_optimal', 
+                    colours = c(colours, 'black'),
+                    name = 'basic', 
+                    levels = c('glm', 'gam', 'gbm', 'rf', 'optimal'))
+
+# aggregate oob_cv models
+plot_all_aggregated(all_assessments_best_relative_plot$data[[2]], 
+                    directory = 'figures/model-performance-figures/all_model_rescaled_with_optimal', 
+                    colours = c(colours, 'black'),
+                    name = 'cv', 
+                    levels = c('glm', 'gam', 'gbm', 'rf', 'optimal'))
+
+
+
 # correlation plots amongst best models ----
 
 # plots
