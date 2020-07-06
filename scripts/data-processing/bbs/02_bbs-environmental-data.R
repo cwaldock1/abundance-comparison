@@ -395,3 +395,72 @@ for(i in 1:nlayers(bbs_PCA_stack)){
   
 }
 
+
+# read in spatial datasets as a large matrix ----
+
+# list all spatial datasets 
+spatial_datasets <- list.files('data/bbs_rasters', pattern = 'gri', full.names = T)
+
+# read in example raster and convert to matrix
+spatial_datasets_raster <- lapply(spatial_datasets, function(x){
+  
+  ras <- raster(x)
+  crs(ras) <- '+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0'
+  ras_points <- data.frame(rasterToPoints(ras))
+  return(ras_points)
+  
+})
+
+# ensure x and y are identical (previous code seems to have added 0.00001 to some of the xy values in conversions)
+spatial_datasets_raster <- lapply(spatial_datasets_raster, function(x){
+  x$x <- spatial_datasets_raster[[1]]$x 
+  x$y <- spatial_datasets_raster[[1]]$y
+  return(x)
+})
+
+# apply together
+spatial_datasets_raster_all <- Reduce(left_join, spatial_datasets_raster)
+
+# check for NAs 
+lapply(spatial_datasets_raster_all, function(x) table(is.na(x)))
+
+# select only covariates used in modelling
+load('data/bbs_covariates.RData')
+covariates = bbs_xy[c('SiteLongitude', 
+                      'SiteLatitude',
+                      "robPCA_1", 
+                      "robPCA_2", 
+                      "robPCA_3", 
+                      "human_pop",
+                      'primary_forest', 
+                      'Elevation_GEBCO')]
+
+covariates_usa <- spatial_datasets_raster_all[c('x', 
+                                                'y',
+                                                "merra.pc1",
+                                                "merra.pc2", 
+                                                "merra.pc3", 
+                                                "human_pop",
+                                                'primary_forest', 
+                                                'Elevation.relative.to.sea.level')]
+
+names(covariates_usa) <- names(covariates)
+
+# apply rescaling to the covariates
+vars <- c("robPCA_1","robPCA_2","robPCA_3","human_pop",'primary_forest', 'Elevation_GEBCO')
+covariates_usa_scaled <- do.call(cbind, lapply(1:length(vars), function(x) {
+  
+  # get the values to rescale by
+  cov_x <- covariates[vars[x]]
+  scale_cov_x <- scale(cov_x)
+  (covariates_usa[vars[x]] - attr(scale_cov_x,"scaled:center")) / attr(scale_cov_x,"scaled:scale")
+  
+}))
+
+# combine all
+all_bbs_scaled <- cbind(covariates_usa[c('SiteLongitude', 'SiteLatitude')], covariates_usa_scaled)
+
+# save RDS
+saveRDS(all_bbs_scaled, file = 'data/bbs_spatial_projection_data.rds')
+
+

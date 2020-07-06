@@ -155,11 +155,13 @@ resRobSvd <- pcaMethods::pca(rf_covs_ext,
                              scale = 'uv', 
                              nPcs = dim(rf_covs_ext)[2])
 
+saveRDS(resRobSvd, file = 'data/rls_resRobSvd.rds')
+
 resRobSvd # 3 loadings appear important and explain ~75% variation, and all more than 1%
 
 # robustPca calculated PCA
 # Importance of component(s):
-# PC1    PC2     PC3      PC4     PC5      PC6    PC7     PC8     PC9    PC10     PC11     PC12     PC13     PC14    PC15
+#               PC1    PC2     PC3      PC4     PC5      PC6    PC7     PC8     PC9    PC10     PC11     PC12     PC13     PC14    PC15
 # R2            0.4789 0.2163 0.08279 -0.08121 -0.1416 -0.03306 0.0508 -0.0568 -0.0405 -0.2314 -0.05585 -0.26783 -0.01642 -0.07162 -0.1746
 # Cumulative R2 0.4789 0.6952 0.77796  0.69675  0.5552  0.52210 0.5729  0.5161  0.4756  0.2442  0.18837 -0.07946 -0.09588 -0.16750 -0.3421
 # 15 	Variables
@@ -271,8 +273,8 @@ names(MSEC) <- c('human_pop_2015_50km', 'reef_area_200km', 'wave_energy_mean')
 
 # change values
 MSEC$human_pop_2015_50km <- calc(MSEC$human_pop_2015_50km, function(x) scale(log10(x+1)))
-MSEC$reef_area_200km     <- calc(MSEC$reef_area_200km, function(x) scale(log10(x+1)))
-MSEC$wave_energy_mean    <- calc(MSEC$wave_energy_mean, function(x) scale(log10(x+1)))
+MSEC$reef_area_200km     <- calc(MSEC$reef_area_200km,     function(x) scale(log10(x+1)))
+MSEC$wave_energy_mean    <- calc(MSEC$wave_energy_mean,    function(x) scale(log10(x+1)))
 
 # perform extractions
 for(i in 1:length(names(MSEC))){
@@ -306,6 +308,10 @@ save(rls_xy, file = 'data/rls_covariates.RData')
 
 
 # create RLS raster stack of env. variables for projection ----
+
+# read in robust PCA model
+
+resRobSvd <- readRDS(file = 'data/rls_resRobSvd.rds')
 
 # read in global mask create for reef-futures project in reef-futures-data-processing project
 
@@ -355,26 +361,38 @@ for(i in 1:nlayers(rls_standardized)){
 
 # get raster
 
-rls_climate  <- rasterToPoints(rls_standardized[[names(rf_covs)]])
+rls_climate  <- rls_standardized[[names(rf_covs)]]
 rls_all_xy <- rls_climate[,1:2]
 
 # check identical ordering of variables
 
-identical(colnames(resRobSvd@completeObs), colnames(rls_climate[,-c(1,2)]))
+identical(colnames(resRobSvd@completeObs), names(rls_climate))
 
-# project rasters
-
-rls_raster_predictions <- predict(resRobSvd, rls_climate[,-c(1,2)], pcs = 3)
-
-# apply to rasters
-
-rls_PCA_stack <- stack(lapply(1:3, function(x) {rasterFromXYZ(cbind(rls_all_xy, rls_raster_predictions$scores[,x]))}))
-
-plot(rls_PCA_stack)
+# predict rasters from the robust PCA
+rls_raster_predictions <- rls_aus_grid
+resRobSVD_raster <- list()
+for(i in 1:3){
+  empty_grid <- rls_aus_grid
+  predicted_values <- predict(resRobSvd, as.matrix(rls_climate), npcs = 3)$scores[,i]
+  predicted_values[is.na(rls_aus_grid[])] <- NA
+  resRobSVD_raster[[i]] <- setValues(empty_grid, predicted_values)
+}
+resRobSVD_raster <- stack(resRobSVD_raster)
 
 # rename 
 
-names(rls_PCA_stack) <- c('environmental-pc1', 'environmental-pc2', 'environmental-pc3')
+names(resRobSVD_raster) <- c('environmental-pc1', 'environmental-pc2', 'environmental-pc3')
+
+# perform standardizations
+
+rls_PCA_stack_standardized <- lapply(1:nlayers(resRobSVD_raster), 
+                     function(x){ 
+                       print(x) 
+                       standardize_raster(masterMask   = rls_aus_grid, 
+                                          targetRaster = resRobSVD_raster[[x]], 
+                                          initial_constraint = T, 
+                                          maxdist = 2)}
+)
 
 # write pcas to rasters
 
@@ -387,3 +405,66 @@ for(i in 1:nlayers(rls_PCA_stack)){
               overwrite=T)
   
 }
+
+
+# stack all of interest together, rescale and save ----
+
+# select only covariates used in modelling
+load('data/rls_covariates.RData')
+covariates = rls_xy[c('SiteLongitude', 
+                      'SiteLatitude',
+                      "human_pop_2015_50km", 
+                      "reef_area_200km", 
+                      "wave_energy_mean", 
+                      "Depth_GEBCO_transformed",
+                      'robPCA_1', 
+                      'robPCA_2', 
+                      'robPCA_3',
+                      'sst_mean')]
+
+# stack all the rasters of interest 
+rls_all_covariates_stacked <- stack(rls_standardized[['Elevation.relative.to.sea.level']], 
+                                    resRobSVD_raster, 
+                                    rls_standardized[[c('sst_mean')]])
+
+# rename depth
+names(rls_all_covariates_stacked)[which(names(rls_all_covariates_stacked) == 'Elevation.relative.to.sea.level')] <- 'Depth_GEBCO_transformed'
+
+# transform depth
+rls_all_covariates_stacked[['Depth_GEBCO_transformed']][which(rls_all_covariates_stacked[['Depth_GEBCO_transformed']][] > 0)] <- 0 # lose the differentiation between land and sea.
+rls_all_covariates_stacked[['Depth_GEBCO_transformed']] <- log10(round(abs(rls_all_covariates_stacked[['Depth_GEBCO_transformed']])+1))
+
+# rename 
+names(rls_all_covariates_stacked) <- c("Depth_GEBCO_transformed",'robPCA_1', 'robPCA_2', 'robPCA_3','sst_mean')
+
+# take the layers that are scaled and transformed
+# apply rescaling to the covariates
+vars <- c("Depth_GEBCO_transformed",
+          'robPCA_1', 
+          'robPCA_2', 
+          'robPCA_3',
+          'sst_mean')
+
+# convert to points
+aus_covariates <- data.frame(rasterToPoints(rls_all_covariates_stacked))
+names(aus_covariates)[-c(1,2)] <- vars
+
+# transform scale for predictions to the same as in models
+aus_covariates_2 <- do.call(cbind, lapply(1:length(vars), function(x) {
+  
+  # get the values to rescale by
+  cov_x <- covariates[vars[x]]
+  scale_cov_x <- scale(cov_x)
+  (aus_covariates[vars[x]] - attr(scale_cov_x,"scaled:center")) / attr(scale_cov_x,"scaled:scale")
+  
+}))
+
+# combine all
+all_rls_scaled <- cbind(aus_covariates[c('x', 'y')], aus_covariates_2, rasterToPoints(rls_standardized[[c('human_pop_2015_50km', 'reef_area_200km', 'wave_energy_mean')]])[,-c(1,2)])
+
+names(all_rls_scaled)[1:2] <- c('SiteLongitude', 'SiteLatitude')
+
+# save output
+saveRDS(all_rls_scaled, file = 'data/rls_spatial_projection_data.rds')
+
+
