@@ -17,15 +17,19 @@
 #species_name <- unique(abundance$TAXONOMIC_NAME)
 
 occ_rf <- function(abundance = abundance, 
-                   validation = validation,
                    covariates = covariates, 
                    species_name = species_name, 
+                   spatial_projections, 
                    base_dir,
+                   spatial_dir,
                    n_bootstrap,
                    n.cores = 10){
+  
   require(tidyverse)
   require(randomForest)
   require(ecospat)
+  
+  ecoVersion <- packageVersion("ecospat")
   
   # filter to columns of interest for abundance and occurrence datasets
   abundance <- abundance[c('SiteLongitude', 'SiteLatitude', 'Num')]
@@ -64,6 +68,7 @@ occ_rf <- function(abundance = abundance,
   imp_occ <- list()
   eval_occ <- list()
   occ_predictions <- list()
+  occ_spatial_predictions <- list()
   errors <- c()
   
   # get occurrence data to use in each iteration
@@ -111,6 +116,11 @@ occ_rf <- function(abundance = abundance,
                                        occurrence[which(occurrence$occurrence==1),names(covariates)], 
                                        type = 'prob')[,2]
     
+    # make spatial predictions and average 
+    occ_spatial_predictions[[boot]] <- predict(rf_occ[[boot]], 
+                                               spatial_projections[,names(covariates)],
+                                               type = 'prob')[,2]
+  
   }
   
   # average variable importance across occurrence bootstraps
@@ -119,6 +129,9 @@ occ_rf <- function(abundance = abundance,
   # estimate best threshold for converting probability of presences to - presence-absence to constrain spatial projections DO THIS LATER
   obs_preds <- do.call(rbind, eval_occ)
   occ_eval <- ecospat.max.tss(obs_preds[,1], obs_preds[,2])
+  
+  # average over occupancy spatial predictions
+  occ_spatial_predictions <- apply(do.call(cbind, occ_spatial_predictions), 1, mean)
   
   
   ### fit abundance models
@@ -133,6 +146,10 @@ occ_rf <- function(abundance = abundance,
   
   # make predictions
   abun_predictions <- predict(rf_abun, occurrence[which(occurrence$occurrence==1),names(covariates)])
+  
+  # make spatial predictions 
+  abun_spatial_predictions <- predict(rf_abun, spatial_projections[,names(covariates)])
+  
   
   # extract occurrence predictions from occurrences
   occ_predictions <- apply(do.call(cbind, occ_predictions), 1, mean)
@@ -166,5 +183,27 @@ occ_rf <- function(abundance = abundance,
   dir.create(model_final_path, recursive = T)
   saveRDS(list(var_imp_comparison, predictions), 
           file = paste0(model_final_path, '/', gsub(' ', '_', species_name), '.RDS'))
+  
+  
+  
+  ### create object for spatial projections
+  spatial_abundance_prediction <- data.frame(
+    occupancy_rate = abs(round(occ_spatial_predictions*1000)), 
+    abundance_log  = abs(round(abun_spatial_predictions*1000)))
+
+  # save spatial projections
+  spatial_path <- paste0(spatial_dir, '/', dataset)
+  dir.create(spatial_path, recursive = T)
+  saveRDS(list(spatial_abundance_prediction, TSS_threshold = ifelse(ecoVersion == 3.0, occ_eval[[2]][2,2], occ_eval[[3]])), 
+            file = paste0(spatial_path, '/', gsub(' ', '_', species_name), '.RDS')
+            )
+  
+  # save tss scores seperately
+  #tss_path <- paste0(spatial_dir, '/TSS/', dataset)
+  #dir.create(tss_path, recursive = T)
+  #saveRDS(occ_eval, 
+  #        file = paste0(tss_path, '/', gsub(' ', '_', species_name), '.RDS')
+  #)
+  
   
   } #end of function

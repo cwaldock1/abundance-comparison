@@ -431,23 +431,19 @@ covariates = bbs_xy[c('SiteLongitude',
                       "robPCA_1", 
                       "robPCA_2", 
                       "robPCA_3", 
-                      "human_pop",
-                      'primary_forest', 
-                      'Elevation_GEBCO')]
+                      'primary_forest')]
 
 covariates_usa <- spatial_datasets_raster_all[c('x', 
                                                 'y',
                                                 "merra.pc1",
                                                 "merra.pc2", 
                                                 "merra.pc3", 
-                                                "human_pop",
-                                                'primary_forest', 
-                                                'Elevation.relative.to.sea.level')]
+                                                'primary_forest')]
 
 names(covariates_usa) <- names(covariates)
 
 # apply rescaling to the covariates
-vars <- c("robPCA_1","robPCA_2","robPCA_3","human_pop",'primary_forest', 'Elevation_GEBCO')
+vars <- c("robPCA_1", "robPCA_2", "robPCA_3", 'primary_forest')
 covariates_usa_scaled <- do.call(cbind, lapply(1:length(vars), function(x) {
   
   # get the values to rescale by
@@ -458,7 +454,19 @@ covariates_usa_scaled <- do.call(cbind, lapply(1:length(vars), function(x) {
 }))
 
 # combine all
-all_bbs_scaled <- cbind(covariates_usa[c('SiteLongitude', 'SiteLatitude')], covariates_usa_scaled)
+all_bbs_scaled <- cbind(covariates_usa[c('SiteLongitude', 'SiteLatitude')],
+                        spatial_datasets_raster_all['human_pop'], 
+                        spatial_datasets_raster_all['Elevation.relative.to.sea.level'], 
+                        covariates_usa_scaled)[c('SiteLongitude', 
+                                               'SiteLatitude',
+                                               "robPCA_1", 
+                                               "robPCA_2", 
+                                               "robPCA_3", 
+                                               "human_pop",
+                                               'primary_forest', 
+                                               'Elevation.relative.to.sea.level')]
+
+names(all_bbs_scaled)[which(names(all_bbs_scaled) == 'Elevation.relative.to.sea.level')] <- 'Elevation_GEBCO'
 
 # save RDS
 saveRDS(all_bbs_scaled, file = 'data/bbs_spatial_projection_data.rds')

@@ -57,6 +57,10 @@ n_boots = 10
 # set up dataset save and base-directory for file saves
 dataset = 'rls'
 base_dir = 'results/variable_importance'
+spatial_dir = 'results/spatial_projections'
+
+# spatial projection covariates
+spatial_projections <- na.omit(readRDS('data/rls_spatial_projection_data.rds'))
 
 # call script to call function to fit model
 source('scripts/fitting-rfocc-models/fit-models/fit_occ_rf.R')

@@ -31,17 +31,15 @@ covariates = bbs_xy[c('SiteLongitude',
                       'primary_forest', 
                       'Elevation_GEBCO')]
 
+# scale variables before modelling
+# elevation and human pop got scaled earlier in 02_bbs-environmental-data
 covariates[c("robPCA_1", 
              "robPCA_2", 
              "robPCA_3", 
-             "human_pop",
-             'primary_forest', 
-             'Elevation_GEBCO')] <- as.numeric(scale(covariates[c("robPCA_1", 
+             'primary_forest')] <- as.numeric(scale(covariates[c("robPCA_1", 
                                                                   "robPCA_2", 
                                                                   "robPCA_3", 
-                                                                  "human_pop",
-                                                                  'primary_forest', 
-                                                                  'Elevation_GEBCO')]))
+                                                                  'primary_forest')]))
 
 # read in gridded covariate data for bbs 
 # not implemented in function yet
@@ -52,6 +50,10 @@ n_boots = 10
 # set up dataset save and base-directory for file saves
 dataset = 'bbs'
 base_dir = 'results/variable_importance'
+spatial_dir = 'results/spatial_projections'
+
+# spatial projection covariates
+spatial_projections <- na.omit(readRDS('data/bbs_spatial_projection_data.rds'))
 
 source('scripts/fitting-rfocc-models/fit-models/fit_occ_rf.R')
 
