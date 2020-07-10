@@ -6,10 +6,13 @@ plot_distributions <- function(xy,
                                dataset, 
                                save_dir){
   
+  require(raster)
   require(sp)
   require(sf)
   require(rgeos)
   require(rgdal)
+  require(rnaturalearth)
+  require(viridis)
   
   # get raw species abundances
   species_data <- readRDS(list.files(paste0('data/', dataset, '_all_basic/'), pattern = paste0(species_name, '.RDS'), full.names = T))
@@ -21,7 +24,7 @@ plot_distributions <- function(xy,
   # get species projections
   species_projections <- readRDS(list.files('results/spatial_projections/', pattern = species_name, full.names = T, recursive = T))
   species_proj_2 <- species_projections[[1]]/1000
-  species_proj_2$presence <- ifelse(species_proj_2$occupancy_rate > species_projections[[2]], 1, 0) # perform threshold
+  species_proj_2$presence <- ifelse(species_proj_2$occupancy_rate > species_projections[[2]]$threshold.TSS.suitability, 1, 0) # perform threshold
   # add in xy
   species_proj_2 <- cbind(species_proj_2, na.omit(xy))
   
@@ -40,7 +43,7 @@ plot_distributions <- function(xy,
   min_long <- min(c(extent(species_hull)[1,], min(range(species_proj_2$SiteLongitude))))
   # maximum long
   max_long <- max(c(extent(species_hull)[2,], max(range(species_proj_2$SiteLongitude))))
-    # minimum lat
+  # minimum lat
   min_lat <- min(c(extent(species_hull)[3,], min(range(species_proj_2$SiteLatitude))))
   # maximum lat
   max_lat <- max(c(extent(species_hull)[4,], max(range(species_proj_2$SiteLatitude))))
@@ -78,12 +81,11 @@ plot_distributions <- function(xy,
   
   ggplot(data = world) +
     geom_sf(col = 'grey70', fill= 'gray70', lwd = 0.001) + 
-    geom_tile(data = species_proj_2, aes(y = SiteLatitude, x = SiteLongitude, fill = presence)) + 
+    geom_tile(data = species_proj_2, aes(y = SiteLatitude, x = SiteLongitude, fill = as.factor(presence))) + 
     xlim(c(min_long, max_long)) + 
     ylim(c(min_lat, max_lat)) + 
     theme(legend.position = c(0.2, 0.1)) + 
-    viridis::scale_fill_viridis(option = "magma", name = NULL, 
-                                guide = guide_colourbar(direction = 'horizontal')) +
+    scale_fill_manual(values = c('white', 'black'), name = NULL) +
     ggtitle('presence - threshold')+ 
     theme(panel.background = element_blank(), 
           panel.border = element_rect(colour = 'black', fill = 'transparent'), 

@@ -194,7 +194,7 @@ occ_rf <- function(abundance = abundance,
   # save spatial projections
   spatial_path <- paste0(spatial_dir, '/', dataset)
   dir.create(spatial_path, recursive = T)
-  saveRDS(list(spatial_abundance_prediction, TSS_threshold = ifelse(ecoVersion == 3.0, occ_eval[[2]][2,2], occ_eval[[3]])), 
+  saveRDS(list(spatial_abundance_prediction, TSS_threshold = data.frame(max.TSS = occ_eval[[2]], threshold.TSS.suitability = occ_eval[[3]])), 
             file = paste0(spatial_path, '/', gsub(' ', '_', species_name), '.RDS')
             )
   
