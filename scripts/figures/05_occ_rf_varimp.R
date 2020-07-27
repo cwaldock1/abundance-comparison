@@ -1,7 +1,5 @@
 # script to analyse and plot patterns in variable importance 
 
-
-
 # libraries and set up---- 
 
 lib_vect <- c('tidyverse', 'cowplot', 'RColorBrewer', 'gridExtra', 'grid')
@@ -10,9 +8,46 @@ for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(lib_vect,require,character=TRUE)
 detach("package:raster", unload = TRUE)
 
+# create vector of species that have good performing species occurrence models and species abundance models ----
 
+# read in species occurrence results and obtain TSS
+sp_projections <- list.files('results/spatial_projections', recursive = T, full.names = T)
 
+# loop through read and create dataset of TSS
+occ_TSS_values <- parallel::mclapply(1:length(sp_projections), mc.cores=10, function(x){
+  #print(x)
+  species_file <- sp_projections[x]
+  TSS <- as.numeric(as.character(readRDS(species_file)$TSS_threshold$max.TSS))
+  dataset <- str_split(species_file, '/')[[1]][3]
+  species_name = gsub('.RDS', '', gsub('_', ' ', str_split(species_file, '/')[[1]][4]))
+  return(data.frame(species_name, dataset, species_file, TSS))
+  })
+occ_TSS_values <- do.call(rbind, occ_TSS_values)
+occ_TSS_values <- occ_TSS_values %>% filter(TSS > 0.75)
+table(occ_TSS_values$dataset)
+#  bbs  rls 
+# 1025  489 
 
+# read in species abundance results and obtain spearmans rank correlation for specific model type
+all_assessments <- lapply(list.files('results/model_assessment_all/validation', full.names = T), readRDS)
+all_assessments <- do.call(rbind, all_assessments)
+abun_perform <- all_assessments %>% filter(abundance_response == 'abun', plot_level == 'rf.abun.g.l', cross_validation %in% c('bbs_basic', 'rls_basic')) %>% 
+  select(species_name, Dspearman, dataset) %>% 
+  filter(Dspearman > 0.5)
+
+table(abun_perform$dataset)
+# bbs  rls 
+# 1009  460 
+
+# see how many species per dataset are removed in total
+full_sp_list <- full_join(abun_perform, occ_TSS_values) %>% na.omit
+full_sp_list %>% filter(dataset == 'bbs') %>% .$species_name %>% unique %>% length
+full_sp_list %>% filter(dataset == 'rls') %>% .$species_name %>% unique %>% length
+
+# join together evaluations from species occurrence models and abundance models
+high_performance_species <- unique(full_sp_list$species_name)
+
+saveRDS(high_performance_species, 'results/high_performance_species.RDS')
 
 # read in variable importance results ----
 
@@ -35,8 +70,8 @@ pred_occ_abun <- do.call(rbind, lapply(vi_read, function(x) x[[2]]))
 
 # create plots of variable importance ----
 
-
 agg_var_imp <- var_imp %>% 
+  filter(species_name %in% high_performance_species) %>% 
   group_by(covariate, dataset) %>% 
   do(occ_imp_mean  = mean(.$occurrence_imp_rescaled, na.rm = T), 
      abun_imp_mean = mean(.$abundance_imp_rescaled, na.rm = T), 
@@ -83,7 +118,8 @@ agg_var_imp_plot <- ggplot(data = agg_var_imp) +
   theme_bw() + 
   theme(legend.position = 'none', 
         aspect.ratio = 1, 
-        panel.grid = element_blank(),  
+        panel.grid = element_blank(), 
+        axis.text = element_text(size = 14),
         strip.text.x = element_text(angle = 0, hjust = 0, size = 14),
         axis.title = element_text(size = 14),
         strip.background = element_blank())  + 
@@ -103,6 +139,7 @@ dev.off()
 
 # perform t.tests and tidy up
 all_t.tests <- var_imp %>% 
+  filter(species_name %in% high_performance_species) %>% 
   select(dataset, covariate, species_name, occurrence_imp_rescaled, abundance_imp_rescaled) %>% 
   group_by(covariate, dataset) %>% 
   do(t_test_results = t.test(y = .$abundance_imp_rescaled, x=.$occurrence_imp_rescaled)) %>% 
@@ -134,6 +171,7 @@ writexl::write_xlsx(all_t.tests, path = paste0('figures/variable_importance/var_
 
 # extract species level spearmans rank correlations
 var_spear <- var_imp %>% 
+  filter(species_name %in% high_performance_species) %>% 
   select(dataset, species_name, spearmans_rank) %>%
   unique() %>% 
   group_by(dataset) %>% 

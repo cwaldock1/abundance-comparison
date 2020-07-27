@@ -57,12 +57,12 @@ spatial_projections <- na.omit(readRDS('data/bbs_spatial_projection_data.rds'))
 
 source('scripts/fitting-rfocc-models/fit-models/fit_occ_rf.R')
 
-# load script for making species specific figures
-source('scripts/figures/functions/spatial_projection_functions.R')
-
-plot_distributions(xy = readRDS('data/bbs_spatial_projection_data.rds'), 
-                   species_name = gsub(' ','_',unique(abundance_input$TAXONOMIC_NAME)),
-                   dataset = dataset,
-                   save_dir = 'figures/spatial_projections/species_distributions')
-
+# # load script for making species specific figures
+# source('scripts/figures/functions/spatial_projection_functions.R')
+# 
+# plot_distributions(xy = readRDS('data/bbs_spatial_projection_data.rds'), 
+#                    species_name = gsub(' ','_',unique(abundance_input$TAXONOMIC_NAME)),
+#                    dataset = dataset,
+#                    save_dir = 'figures/spatial_projections/species_distributions')
+# 
 

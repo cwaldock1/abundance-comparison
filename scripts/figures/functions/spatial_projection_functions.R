@@ -22,18 +22,20 @@ plot_distributions <- function(xy,
   species_hull <- readRDS(list.files(paste0('data/species_range_convex_hull/', dataset), pattern = paste0(species_name, '.RDS'), full.names = T))
   
   # get species projections
-  species_projections <- readRDS(list.files('results/spatial_projections/', pattern = species_name, full.names = T, recursive = T))
-  species_proj_2 <- species_projections[[1]]/1000
-  species_proj_2$presence <- ifelse(species_proj_2$occupancy_rate > species_projections[[2]]$threshold.TSS.suitability, 1, 0) # perform threshold
+  species_projections <- readRDS(list.files('results/spatial_projections_cropped/', pattern = species_name, full.names = T, recursive = T))
+  species_proj_2 <- species_projections/1000#species_projections[[1]]/1000
+  species_proj_2$presence <- 1 #ifelse(species_proj_2$occupancy_rate > species_projections[[2]]$threshold.TSS.suitability, 1, 0) # perform threshold
   # add in xy
   species_proj_2 <- cbind(species_proj_2, na.omit(xy))
+  # remove NAs 
+  species_proj_2 <- na.omit(species_proj_2)
   
-  # convert to spatial points data frame
-  pointsDF <- SpatialPointsDataFrame(SpatialPoints(coordinates(cbind(species_proj_2$SiteLongitude, species_proj_2$SiteLatitude))),
-                                     species_proj_2[,1:3],
-                                     proj4string = species_hull@proj4string)
-  crs(pointsDF) <- species_hull@proj4string
-  species_proj_3 <- species_proj_2[!is.na(over(pointsDF, species_hull)), ]
+  # # convert to spatial points data frame
+  # pointsDF <- SpatialPointsDataFrame(SpatialPoints(coordinates(cbind(species_proj_2$SiteLongitude, species_proj_2$SiteLatitude))),
+  #                                    species_proj_2[,1:3],
+  #                                    proj4string = species_hull@proj4string)
+  # crs(pointsDF) <- species_hull@proj4string
+  # species_proj_3 <- species_proj_2[!is.na(over(pointsDF, species_hull)), ]
   
   # get maximum and minimum of hull or ranges for xy lims
   ch_range <- rbind(matrix(extent(species_hull))[1:2,], matrix(extent(species_hull))[3:4,]) 
@@ -48,7 +50,7 @@ plot_distributions <- function(xy,
   # maximum lat
   max_lat <- max(c(extent(species_hull)[4,], max(range(species_proj_2$SiteLatitude))))
 
-  # create map of spatial presences
+  # create map of spatial countries
   world <- ne_countries(scale = "large", returnclass = "sf")  
   
   # create set of species level maps
@@ -93,7 +95,7 @@ plot_distributions <- function(xy,
   
   ggplot(data = world) +
     geom_sf(col = 'grey70', fill= 'gray70', lwd = 0.001) + 
-    geom_tile(data = species_proj_3, aes(y = SiteLatitude, x = SiteLongitude, fill = occupancy_rate)) + 
+    geom_tile(data = species_proj_2, aes(y = SiteLatitude, x = SiteLongitude, fill = occupancy_rate)) + 
     xlim(c(min_long, max_long)) + 
     ylim(c(min_lat, max_lat)) + 
     theme(legend.position = c(0.2, 0.1)) + 
@@ -106,7 +108,7 @@ plot_distributions <- function(xy,
   
   ggplot(data = world) +
     geom_sf(col = 'grey70', fill= 'gray70', lwd = 0.001) + 
-    geom_tile(data = species_proj_3, aes(y = SiteLatitude, x = SiteLongitude, fill = abundance_log)) + 
+    geom_tile(data = species_proj_2, aes(y = SiteLatitude, x = SiteLongitude, fill = abundance_log)) + 
     xlim(c(min_long, max_long)) + 
     ylim(c(min_lat, max_lat)) + 
     theme(legend.position = c(0.2, 0.1)) + 
@@ -119,7 +121,7 @@ plot_distributions <- function(xy,
   
   ggplot(data = world) +
     geom_sf(col = 'grey70', fill= 'gray70', lwd = 0.001) + 
-    geom_tile(data = species_proj_3, aes(y = SiteLatitude, x = SiteLongitude, fill = exp(abundance_log)-1)) + 
+    geom_tile(data = species_proj_2, aes(y = SiteLatitude, x = SiteLongitude, fill = exp(abundance_log)-1)) + 
     xlim(c(min_long, max_long)) + 
     ylim(c(min_lat, max_lat)) + 
     theme(legend.position = c(0.2, 0.1)) + 
@@ -132,7 +134,7 @@ plot_distributions <- function(xy,
   
   ggplot(data = world) +
     geom_sf(col = 'grey70', fill= 'gray70', lwd = 0.001) + 
-    geom_tile(data = species_proj_3, aes(y = SiteLatitude, x = SiteLongitude, fill = abundance_log*occupancy_rate)) + 
+    geom_tile(data = species_proj_2, aes(y = SiteLatitude, x = SiteLongitude, fill = abundance_log*occupancy_rate)) + 
     xlim(c(min_long, max_long)) + 
     ylim(c(min_lat, max_lat)) + 
     theme(legend.position = c(0.2, 0.1)) + 
@@ -145,7 +147,7 @@ plot_distributions <- function(xy,
   
   ggplot(data = world) +
     geom_sf(col = 'grey70', fill= 'gray70', lwd = 0.001) + 
-    geom_tile(data = species_proj_3, aes(y = SiteLatitude, x = SiteLongitude, fill = (exp(abundance_log)-1)*occupancy_rate)) + 
+    geom_tile(data = species_proj_2, aes(y = SiteLatitude, x = SiteLongitude, fill = (exp(abundance_log)-1)*occupancy_rate)) + 
     xlim(c(min_long, max_long)) + 
     ylim(c(min_lat, max_lat)) + 
     theme(legend.position = c(0.2, 0.1)) + 

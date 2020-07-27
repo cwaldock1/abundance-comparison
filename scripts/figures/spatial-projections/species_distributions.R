@@ -38,11 +38,12 @@ bbs_xy <- readRDS('data/bbs_spatial_projection_data.rds')
 all_sp <- gsub('.RDS', '', list.files('results/spatial_projections/bbs'))
 
 # test function
-lapply(1:length(all_sp), function(x)
+lapply(1:length(all_sp), function(x){
+  print(x)
   plot_distributions(xy           = bbs_xy, 
                      species_name = all_sp[x], 
                      dataset      = 'bbs', 
-                     save_dir     = 'figures/spatial_projections/species_distributions'))
+                     save_dir     = 'figures/spatial_projections/species_distributions')})
 
 
 

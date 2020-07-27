@@ -65,6 +65,17 @@ sp_proj_files <- list.files('results/spatial_projections/bbs', full.names=T)
 # create output directory
 dir.create('results/spatial_projections_cropped/bbs', recursive = T)
 
+# create USA clipping
+world <- ne_countries(scale = "large", returnclass = "sf") 
+usa <- subset(world, admin == "United States of America")
+usa_2 <- crop(as_Spatial(usa), extent(c(-130, -60, 25, 50)))
+
+# crop to USA map (all usa is in buffer)
+all_points <- SpatialPoints(coordinates(cbind(bbs_xy$SiteLongitude, bbs_xy$SiteLatitude)),
+                                   proj4string = crs('+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'))
+NA_vector <- is.na(sp::over(all_points, usa_2))
+NA_vector <- NA_vector[,1]
+
 # loop to crop
 mclapply(1:length(sp_proj_files), mc.cores = 10, function(i){
   
@@ -81,8 +92,12 @@ mclapply(1:length(sp_proj_files), mc.cores = 10, function(i){
                                      sp_proj[,c('occupancy_rate', 'abundance_log')],
                                      proj4string = sp_ch@proj4string)
   crs(pointsDF) <- sp_ch@proj4string
-  sp_proj[is.na(over(pointsDF, sp_ch)), c('occupancy_rate', 'abundance_log')] <- 0
+  sp_NAs <- is.na(over(pointsDF, sp_ch))
+  # combine with clipping for contiguous USA
+  all_NAs <- ifelse((sp_NAs + NA_vector) != 0, TRUE, FALSE)
+  sp_proj[all_NAs, c('occupancy_rate', 'abundance_log')] <- NA
   
+  # also clip and refine analysis to contiguous USA
   saveRDS(sp_proj[-c(1,2)], paste0('results/spatial_projections_cropped/bbs/', strsplit(sp_proj_files, '/')[[i]][4]))
   
 })
