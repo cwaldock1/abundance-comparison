@@ -7,6 +7,9 @@ install.lib<-lib_vect[!lib_vect %in% installed.packages()]
 for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(lib_vect,require,character=TRUE)
 
+# source functions with partial dependence plots
+source('scripts/figures/functions/spatial_projection_functions.R')
+
 
 # create output directories 
 dir.create('figures/spatial_projections/aggregated_distributions/rls', recursive = T)
@@ -97,7 +100,7 @@ cor.test(rls_abun_occ$occupancy_rate, rls_abun_occ$abundance, method = 'spearman
 #       rho 
 # 0.8111848 
 
-png(filename = 'figures/spatial_projections/aggregated_distributions/rls/spatial_maps.png', width = 3000, height = 3000, res = 300)
+png(filename = 'figures/spatial_projections/aggregated_distributions/rls/spatial_maps_V2.png', width = 1200, height = 5000, res = 300)
 grid.arrange(
 ggplot(data = world) +
   geom_tile(data = rls_abun_occ, aes(y = SiteLatitude, x = SiteLongitude, fill = occupancy_rate)) + 
@@ -106,10 +109,11 @@ ggplot(data = world) +
   ylim(range(rls_abun_occ$SiteLatitude)) + 
   theme(legend.position = c(0.2, 0.1)) + 
   viridis::scale_fill_viridis(option = "magma", name = NULL, guide = guide_colourbar(direction = 'horizontal')) +
-  ggtitle('(a) summed occupancy probability')+ 
   theme(panel.background = element_blank(), 
         panel.border = element_rect(colour = 'black', fill = 'transparent'), 
-        axis.title   = element_blank()),
+        axis.title   = element_blank(), 
+        axis.text = element_blank(), 
+        axis.ticks = element_blank()),
 
 ggplot(data = world) +
   geom_tile(data = rls_abun_occ, aes(y = SiteLatitude, x = SiteLongitude, fill = abundance)) + 
@@ -117,11 +121,13 @@ ggplot(data = world) +
   xlim(range(rls_abun_occ$SiteLongitude)) + 
   ylim(range(rls_abun_occ$SiteLatitude)) + 
   theme(legend.position = c(0.2, 0.1)) + 
-  viridis::scale_fill_viridis(option = "magma", name = NULL, guide = guide_colourbar(direction = 'horizontal')) +
-  ggtitle('(b) summed abundance') + 
+  viridis::scale_fill_viridis(option = "magma", name = NULL, guide = guide_colourbar(direction = 'horizontal'), 
+                              breaks = c(0, 4000, 8000)) +
   theme(panel.background = element_blank(), 
         panel.border = element_rect(colour = 'black', fill = 'transparent'), 
-        axis.title   = element_blank()),
+        axis.title   = element_blank(), 
+        axis.text = element_blank(), 
+        axis.ticks = element_blank()),
 
 # add plot of residuals between abundance and occurrence
 ggplot(data = world) +
@@ -136,10 +142,11 @@ ggplot(data = world) +
                                   10, 500, max(rls_abun_occ$abundance_residual)),
                        rescaler = function(x,...) x,
                        name = NULL, guide = guide_colourbar(direction = 'horizontal')) +
-  ggtitle('(c) abundance residual') + 
   theme(panel.background = element_blank(), 
         panel.border = element_rect(colour = 'black', fill = 'transparent'), 
-        axis.title   = element_blank()),
+        axis.title   = element_blank(), 
+        axis.text = element_blank(), 
+        axis.ticks = element_blank()),
 
 ggplot(data = rls_abun_occ) +
   geom_point(data = rls_abun_occ, aes(y = abundance, x = occupancy_rate, fill = abundance_residual), alpha = 0.5, pch = 21, stroke=0 ) + 
@@ -153,11 +160,10 @@ ggplot(data = rls_abun_occ) +
   theme(panel.background = element_blank(), 
         panel.border = element_rect(colour = 'black', fill = 'transparent'), 
         legend.position = 'none') + 
-  xlab('summed occupancy probability') + 
-  ylab('abundance') + 
-  ggtitle('(d) comparison of abundance and occurrence'),
+  ylab('summed abundance') + 
+  xlab('summed occupancy probability'),
 
-nrow = 2
+ncol = 1
 
 )
 dev.off()
@@ -168,6 +174,60 @@ dev.off()
 ## this will be a cool way to tell when we expect high abundance than occurrence (competitive advantage - more niche space?)
 # and high occurrence than abundance (forced niche partitioning with compromise for abundance)
 
+
+
+# random forests for rls data ----
+
+# estimate partial dependence plots for spatial projections
+
+# covariate data
+rls_covariates  <- readRDS('data/rls_spatial_projection_data.rds')
+rls_covariates <- rename(rls_covariates,
+                         'depth/elevation' = 'Depth_GEBCO_transformed', 
+                         'human' = 'human_pop_2015_50km', 
+                         'sst'   =  'sst_mean',
+                         'wave energy' = 'wave_energy_mean',
+                         'reef area'   = 'reef_area_200km', 
+                         'climate PC1' = 'robPCA_1', 
+                         'climate PC2' = 'robPCA_2', 
+                         'climate PC3' = 'robPCA_3')
+rls_cov_names <- c('climate PC1', 'climate PC2', 'climate PC3', 'human', 'sst', 'wave energy', 'reef area', 'depth/elevation')
+
+# projection data
+rls_abun_occ_positive_residual <- rls_abun_occ %>% filter(abundance_residual > 0)
+rls_abun_occ_positive_residual <- rls_abun_occ_positive_residual[sample(1:nrow(rls_abun_occ_positive_residual), 5000),]
+rls_abun_occ_negative_residual <- rls_abun_occ %>% filter(abundance_residual < 0)
+rls_abun_occ_negative_residual <- rls_abun_occ_negative_residual[sample(1:nrow(rls_abun_occ_negative_residual), 5000),]
+
+# directories and names
+base_dir <- 'figures/spatial_projections/pdp_varimp'
+dataset  <- 'rls' 
+
+# run pdp functions
+partial_dependence_plots(covariates = rls_covariates,
+                         cov_names  = rls_cov_names, 
+                         projections = rls_abun_occ_positive_residual,
+                         base_dir = 'figures/spatial_projections/pdp_varimp', 
+                         dataset = 'rls', 
+                         name = 'positive_abundance',
+                         option = ifelse(dataset == 'rls', 'viridis', 3))
+
+partial_dependence_plots(covariates = rls_covariates,
+                         cov_names  = rls_cov_names, 
+                         projections = rls_abun_occ_negative_residual,
+                         base_dir = 'figures/spatial_projections/pdp_varimp', 
+                         dataset = 'rls', 
+                         name = 'negative_abundance',
+                         option = ifelse(dataset == 'rls', 'viridis', 3))
+
+partial_dependence_plots(covariates = rls_covariates,
+                         cov_names  = rls_cov_names, 
+                         projections = rbind(rls_abun_occ_positive_residual, rls_abun_occ_negative_residual),
+                         base_dir = 'figures/spatial_projections/pdp_varimp', 
+                         dataset = 'rls', 
+                         name = 'all_residuals',
+                         option = ifelse(dataset == 'rls', 'viridis', 3), 
+                         N = 6)
 
 
 # bbs aggregation ----
@@ -257,42 +317,45 @@ bbs_abun_occ$abundance_residual <- resid(lm_bbs)
 
 # get the spearmans rank correlation between values
 cor.test(bbs_abun_occ$occupancy_rate, bbs_abun_occ$abundance, method = 'spearman')
-# Spearman's rank correlation rho
+#Spearman's rank correlation rho
+# 
 # data:  bbs_abun_occ$occupancy_rate and bbs_abun_occ$abundance
-# S = 3.7047e+16, p-value < 2.2e-16
+# S = 1.3255e+16, p-value < 2.2e-16
 # alternative hypothesis: true rho is not equal to 0
 # sample estimates:
 #       rho 
-# 0.8076932 
+# 0.2335836 
 
-png(filename = 'figures/spatial_projections/aggregated_distributions/bbs/spatial_maps_V2.png', width = 5000, height = 3000, res = 300)
+png(filename = 'figures/spatial_projections/aggregated_distributions/bbs/spatial_maps_V2.png', width = 2200, height = 4500, res = 300)
 grid.arrange(
   ggplot(data = st_as_sf(usa_2)) +
     geom_tile(data = bbs_abun_occ, aes(y = SiteLatitude, x = SiteLongitude, fill = occupancy_rate)) + 
     geom_sf(col = 'black', fill= 'transparent', lwd = 0.2) + 
-    theme(legend.position = c(0.1, 0.1)) + 
+    theme(legend.position = c(0.15, 0.1)) + 
     viridis::scale_fill_viridis(option = "magma", name = NULL, guide = guide_colourbar(direction = 'horizontal')) +
-    ggtitle('(a) summed occupancy probability')+ 
     theme(panel.background = element_blank(), 
           panel.border = element_rect(colour = 'black', fill = 'transparent'), 
-          axis.title   = element_blank()),
+          axis.title   = element_blank(), 
+          axis.text = element_blank(), 
+          axis.ticks = element_blank()),
   
   ggplot(data = st_as_sf(usa_2)) +
     geom_tile(data = bbs_abun_occ, aes(y = SiteLatitude, x = SiteLongitude, fill = abundance)) + 
     geom_sf(col = 'black', fill= 'transparent', lwd = 0.2) + 
-    theme(legend.position = c(0.1, 0.1)) + 
+    theme(legend.position = c(0.15, 0.1)) + 
     viridis::scale_fill_viridis(option = "magma", name = NULL, guide = guide_colourbar(direction = 'horizontal'), 
                                 breaks = c(2000, 4000, 6000)) +
-    ggtitle('(b) summed abundance') + 
     theme(panel.background = element_blank(), 
           panel.border = element_rect(colour = 'black', fill = 'transparent'), 
-          axis.title   = element_blank()),
+          axis.title   = element_blank(), 
+          axis.text = element_blank(), 
+          axis.ticks = element_blank()),
   
   # add plot of residuals between abundance and occurrence
   ggplot(data = st_as_sf(usa_2)) +
     geom_tile(data = bbs_abun_occ, aes(y = SiteLatitude, x = SiteLongitude, fill = abundance_residual)) + 
     geom_sf(col = 'black', fill= 'transparent', lwd = 0.2) + 
-    theme(legend.position = c(0.1, 0.1)) + 
+    theme(legend.position = c(0.15, 0.1)) + 
     scale_fill_gradientn(colours = c(blue2, blue1, mid,  mid, mid, red1, red2),
                          values = c(-max(bbs_abun_occ$abundance_residual), -500, -10, 
                                     0, 
@@ -300,10 +363,11 @@ grid.arrange(
                          rescaler = function(x,...) x,
                          name = NULL, guide = guide_colourbar(direction = 'horizontal'), 
                          breaks = c(-1000, 0, 1000, 3000)) +
-    ggtitle('(c) abundance residual') + 
     theme(panel.background = element_blank(), 
           panel.border = element_rect(colour = 'black', fill = 'transparent'), 
-          axis.title   = element_blank()),
+          axis.title   = element_blank(), 
+          axis.text = element_blank(), 
+          axis.ticks = element_blank()),
   
   ggplot(data = bbs_abun_occ) +
     geom_point(data = bbs_abun_occ, aes(y = abundance, x = occupancy_rate, fill = abundance_residual), alpha = 0.5, pch = 21, stroke=0 ) + 
@@ -318,10 +382,10 @@ grid.arrange(
           panel.border = element_rect(colour = 'black', fill = 'transparent'), 
           legend.position = 'none') + 
     xlab('summed occupancy probability') + 
-    ylab('abundance') + 
-    ggtitle('(d) comparison of abundance and occurrence'),
-  
-  nrow = 2
+    ylab('summed abundance'),
+
+  nrow = 4, 
+  ncol = 1
 
 )
 dev.off()
@@ -329,14 +393,54 @@ dev.off()
 
 # random forests for bbs data ----
 
-# function to estimate and plot effects of covariates on deviations in abundance and occurrence 
+# estimate partial dependence plots for spatial projections
 
+# covariate data
+bbs_covariates  <- readRDS('data/bbs_spatial_projection_data.rds')
+bbs_covariates <- rename(bbs_covariates,
+                     'depth/elevation' = 'Elevation_GEBCO', 
+                     'human' = 'human_pop', 
+                     'forest' = 'primary_forest', 
+                     'climate PC1' = 'robPCA_1', 
+                     'climate PC2' = 'robPCA_2', 
+                     'climate PC3' = 'robPCA_3')
+bbs_cov_names   <- c('climate PC1', 'climate PC2', 'climate PC3', 'human', 'forest', 'depth/elevation')
 
+# projection data
+bbs_abun_occ_positive_residual <- bbs_abun_occ %>% filter(abundance_residual > 0)
+bbs_abun_occ_positive_residual <- bbs_abun_occ_positive_residual[sample(1:nrow(bbs_abun_occ_positive_residual), 5000),]
+bbs_abun_occ_negative_residual <- bbs_abun_occ %>% filter(abundance_residual < 0)
+bbs_abun_occ_negative_residual <- bbs_abun_occ_negative_residual[sample(1:nrow(bbs_abun_occ_negative_residual), 5000),]
 
+# directories and names
+base_dir <- 'figures/spatial_projections/pdp_varimp'
+dataset  <- 'bbs' 
 
+# run pdp functions
+partial_dependence_plots(covariates = bbs_covariates,
+                         cov_names  = bbs_cov_names, 
+                         projections = bbs_abun_occ_positive_residual,
+                         base_dir = 'figures/spatial_projections/pdp_varimp', 
+                         dataset = 'bbs', 
+                         name = 'positive_abundance',
+                         option = ifelse(dataset == 'rls', 'viridis', 3))
 
+partial_dependence_plots(covariates = bbs_covariates,
+                         cov_names  = bbs_cov_names, 
+                         projections = bbs_abun_occ_negative_residual,
+                         base_dir = 'figures/spatial_projections/pdp_varimp', 
+                         dataset = 'bbs', 
+                         name = 'negative_abundance',
+                         option = ifelse(dataset == 'rls', 'viridis', 3))
 
-
+partial_dependence_plots(covariates = bbs_covariates,
+                         cov_names  = bbs_cov_names, 
+                         projections = rbind(bbs_abun_occ_positive_residual, bbs_abun_occ_negative_residual),
+                         base_dir = 'figures/spatial_projections/pdp_varimp', 
+                         dataset = 'bbs', 
+                         name = 'all_residuals',
+                         option = ifelse(dataset == 'rls', 'viridis', 3), 
+                         N = 6)
 
 
 

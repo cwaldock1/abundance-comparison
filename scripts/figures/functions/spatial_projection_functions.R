@@ -213,5 +213,109 @@ species_spearmans_spatial <- function(spatial_dir,
 }
 
 
+# function to create partial dependence plots explaining species projections ----
+
+
+partial_dependence_plots <- function(covariates,
+         cov_names, 
+         projections,
+         base_dir, 
+         dataset, 
+         name,
+         N = 3,
+         option # viridis option
+         ){
+  
+  require(randomForest)
+  require(DALEX)
+  # require(edarf) # had to be built from source
+  
+  # join together spatial projections and covariates
+  comb_proj <- left_join(projections, covariates)
+  
+  # create formula for random forest
+  rf_spatial <- randomForest(x = comb_proj[,which(colnames(comb_proj) %in% cov_names)], 
+                             y = comb_proj$abundance_residual, 
+                             ntree = 1000, 
+                             importance=T, 
+                             keep.inbag=T)
+  
+  # combine predictions to dataset
+  comb_proj <- comb_proj %>% 
+    mutate(predicted = predict(rf_spatial))
+  
+  # exploring using DALEX for visualisation
+  exp_rf_spatial <- explain(model = rf_spatial, 
+                            data  = comb_proj[,which(colnames(comb_proj) %in% cov_names)], 
+                            y = comb_proj$abundance_residual)
+  
+  # calculate variable importance
+  vip <- model_parts(exp_rf_spatial, 
+                     loss_function = loss_root_mean_square, 
+                     n_sample = 1000)
+  vip_plot <- ggplot_build(plot(vip) +
+                             ggtitle(NULL, ' ')+
+                             ylab('root mean square loss') + 
+                             scale_x_discrete(position = "top") +
+                             theme_bw() + 
+                             theme(panel.grid = element_blank(), 
+                                   strip.background = element_blank(), 
+                                   strip.text = element_blank(), 
+                                   legend.position = 'none'))
+  vip_plot$data[[1]]$linetype <- 'solid'
+  vip_plot$data[[1]]$colour <- 'gray50'
+  vip_plot$data[[2]]$colour <- viridis::viridis(10,option = option)[5]
+  vip_plot$data[[3]]$colour <- 'gray75'
+  vip_plot$data[[3]]$fill <- viridis::viridis(10,option = option)[5]
+  vip_plot2 <- ggplot_gtable(vip_plot)
+  vip_plot2 <- ggplotify::as.ggplot(vip_plot2)
+  
+  # select most important 3
+  vars <- vip %>% 
+    filter(!variable %in% c('_full_model_', '_baseline_')) %>% 
+    group_by(variable) %>% 
+    do(dropout_loss = mean(.$dropout_loss)) %>% 
+    unnest() %>% 
+    .[order(.$dropout_loss, decreasing = T),] %>% 
+    .[1:N,] %>% 
+    .$variable %>% 
+    as.character()
+  
+  # estimate partial dependence
+  pdp_rf_spatial <- model_profile(explainer = exp_rf_spatial,
+                                  variables = vars, 
+                                  N = 100)
+  
+  # create partial dependence plots
+  pdp_plot <- plot(pdp_rf_spatial, geom = 'profiles') + 
+    theme_bw() + 
+    scale_colour_viridis_d(1, option = option, begin = 0.1, end = 0.9) + 
+    theme(panel.grid = element_blank(), 
+          strip.text = element_text(hjust = 0), 
+          strip.background = element_blank(), 
+          legend.position = 'none', 
+          panel.background = element_rect(fill = 'transparent'), 
+          panel.ontop = element_blank(), 
+          plot.background = element_blank()) + 
+    ylab('abundance residual') + 
+    ggtitle(NULL, NULL)
+  
+  pdp_plot_build <- ggplot_build(pdp_plot)
+  pdp_plot_build$data[[2]]$colour <- viridis::viridis(10,option = option)[5]
+  pdp_plot_build <- ggplot_gtable(pdp_plot_build)
+  pdp_plot2 <- ggplotify::as.ggplot(pdp_plot_build)
+  
+  
+  # save outputs
+  model_final_path <- paste0(base_dir, '/', dataset)
+  dir.create(model_final_path, recursive = T)
+  png(filename = paste0(model_final_path, '/', name, '_partial_dependence_plot.png'), width = 3000, height = ifelse(N !=3, 2500/2, 2500/4), res=300)
+  grid.arrange(pdp_plot2 + xlab('standardized values'), vip_plot2, 
+               nrow = 1, 
+               widths = c(3,1))
+  dev.off()
+  
+}
+
 
 
