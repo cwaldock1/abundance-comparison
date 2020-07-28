@@ -315,6 +315,8 @@ partial_dependence_plots <- function(covariates,
                widths = c(3,1))
   dev.off()
   
+  return(rf_spatial)
+  
 }
 
 

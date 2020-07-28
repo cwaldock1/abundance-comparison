@@ -91,7 +91,7 @@ lm_rls <- lm(abundance~occupancy_rate, data = rls_abun_occ)
 rls_abun_occ$abundance_residual <- resid(lm_rls)
 
 # get the spearmans rank correlation between values
-cor.test(rls_abun_occ$occupancy_rate, rls_abun_occ$abundance, method = 'spearman')
+rls_cor <- cor.test(rls_abun_occ$occupancy_rate, rls_abun_occ$abundance, method = 'spearman')
 # Spearman's rank correlation rho
 # data:  rls_abun_occ$occupancy_rate and rls_abun_occ$abundance
 # S = 4.5779e+14, p-value < 2.2e-16
@@ -157,9 +157,11 @@ ggplot(data = rls_abun_occ) +
                                   10, 500, max(rls_abun_occ$abundance_residual)),
                        rescaler = function(x,...) x,
                        name = NULL, guide = guide_colourbar(direction = 'horizontal')) +
+  ggtitle(label = bquote('rho' == .(signif(rls_cor$estimate,2))~','~'\n'~'p <' ~ .(0.001))) + 
   theme(panel.background = element_blank(), 
         panel.border = element_rect(colour = 'black', fill = 'transparent'), 
-        legend.position = 'none') + 
+        legend.position = 'none', 
+        plot.title = element_text(vjust = -8, hjust = 0.05, size = 10)) + 
   ylab('summed abundance') + 
   xlab('summed occupancy probability'),
 
@@ -182,6 +184,16 @@ dev.off()
 
 # covariate data
 rls_covariates  <- readRDS('data/rls_spatial_projection_data.rds')
+# human, reef and wave energy are scaled in the 02_rls-environmental-data script. 
+rls_covariates[c("Depth_GEBCO_transformed",
+             'robPCA_1', 
+             'robPCA_2', 
+             'robPCA_3',
+             'sst_mean')] <- as.numeric(scale(rls_covariates[c("Depth_GEBCO_transformed",
+                                                           'robPCA_1', 
+                                                           'robPCA_2', 
+                                                           'robPCA_3',
+                                                           'sst_mean')]))
 rls_covariates <- rename(rls_covariates,
                          'depth/elevation' = 'Depth_GEBCO_transformed', 
                          'human' = 'human_pop_2015_50km', 
@@ -228,6 +240,10 @@ partial_dependence_plots(covariates = rls_covariates,
                          name = 'all_residuals',
                          option = ifelse(dataset == 'rls', 'viridis', 3), 
                          N = 6)
+
+# Mean of squared residuals: 13914.62
+# % Var explained: 94.88
+
 
 
 # bbs aggregation ----
@@ -316,7 +332,7 @@ lm_bbs <- lm(abundance~occupancy_rate, data = bbs_abun_occ)
 bbs_abun_occ$abundance_residual <- resid(lm_bbs)
 
 # get the spearmans rank correlation between values
-cor.test(bbs_abun_occ$occupancy_rate, bbs_abun_occ$abundance, method = 'spearman')
+bbs_cor <- cor.test(bbs_abun_occ$occupancy_rate, bbs_abun_occ$abundance, method = 'spearman')
 #Spearman's rank correlation rho
 # 
 # data:  bbs_abun_occ$occupancy_rate and bbs_abun_occ$abundance
@@ -325,6 +341,11 @@ cor.test(bbs_abun_occ$occupancy_rate, bbs_abun_occ$abundance, method = 'spearman
 # sample estimates:
 #       rho 
 # 0.2335836 
+
+signif(bbs_cor$statistic,2)
+signif(bbs_cor$p.value,2)
+signif(bbs_cor$estimate,2)
+
 
 png(filename = 'figures/spatial_projections/aggregated_distributions/bbs/spatial_maps_V2.png', width = 2200, height = 4500, res = 300)
 grid.arrange(
@@ -378,9 +399,11 @@ grid.arrange(
                                     10, 500, max(bbs_abun_occ$abundance_residual)),
                          rescaler = function(x,...) x,
                          name = NULL, guide = guide_colourbar(direction = 'horizontal')) +
+    ggtitle(label = bquote('rho' == .(signif(bbs_cor$estimate,2))~','~'\n'~'p <' ~ .(0.001))) + 
     theme(panel.background = element_blank(), 
           panel.border = element_rect(colour = 'black', fill = 'transparent'), 
-          legend.position = 'none') + 
+          legend.position = 'none', 
+          plot.title = element_text(vjust = -8, hjust = 0.03, size = 10)) + 
     xlab('summed occupancy probability') + 
     ylab('summed abundance'),
 
@@ -390,6 +413,17 @@ grid.arrange(
 )
 dev.off()
 
+ggtitle(label = bquote(X^2 == .(d$X2)~','~'\n'~'p' ~ .(d$p.value[1]))) + 
+  theme(aspect.ratio = 1, 
+        legend.position = 'none', 
+        panel.grid = element_blank(), 
+        axis.title.y = element_blank(), 
+        axis.title.x = element_text(size = 8), 
+        axis.text = element_text(size = 6), 
+        plot.title = element_text(vjust = -7, hjust = 0.1, size = 8, margin = margin(0,0,0,0)),
+        plot.margin = unit(c(-0.2,-0.4,0,-0.4), "cm"))
+
+
 
 # random forests for bbs data ----
 
@@ -397,6 +431,15 @@ dev.off()
 
 # covariate data
 bbs_covariates  <- readRDS('data/bbs_spatial_projection_data.rds')
+# scale variables before modelling
+# elevation and human pop got scaled earlier in 02_bbs-environmental-data
+bbs_covariates[c("robPCA_1", 
+             "robPCA_2", 
+             "robPCA_3", 
+             'primary_forest')] <- as.numeric(scale(bbs_covariates[c("robPCA_1", 
+                                                                 "robPCA_2", 
+                                                                 "robPCA_3", 
+                                                                 'primary_forest')]))
 bbs_covariates <- rename(bbs_covariates,
                      'depth/elevation' = 'Elevation_GEBCO', 
                      'human' = 'human_pop', 
@@ -441,6 +484,8 @@ partial_dependence_plots(covariates = bbs_covariates,
                          name = 'all_residuals',
                          option = ifelse(dataset == 'rls', 'viridis', 3), 
                          N = 6)
+# Mean of squared residuals: 6986.836
+# % Var explained: 98.73
 
 
 

@@ -119,9 +119,9 @@ agg_var_imp_plot <- ggplot(data = agg_var_imp) +
   theme(legend.position = 'none', 
         aspect.ratio = 1, 
         panel.grid = element_blank(), 
-        axis.text = element_text(size = 14),
+        axis.text = element_text(size = 16),
         strip.text.x = element_text(angle = 0, hjust = 0, size = 14),
-        axis.title = element_text(size = 14),
+        axis.title = element_text(size = 20),
         strip.background = element_blank())  + 
   facet_wrap(~dataset) + 
   xlab('occurrence variable importance') + 

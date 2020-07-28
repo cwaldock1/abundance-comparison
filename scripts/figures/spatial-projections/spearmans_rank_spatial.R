@@ -6,7 +6,10 @@ lib_vect <- c('tidyverse', 'ggplot2', 'rnaturalearth', 'gridExtra')
 install.lib<-lib_vect[!lib_vect %in% installed.packages()]
 for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(lib_vect,require,character=TRUE)
-detach("package:raster", unload = TRUE)
+#detach("package:raster", unload = TRUE)
+
+# source functions with species_spearmans_spatial functions
+source('scripts/figures/functions/spatial_projection_functions.R')
 
 # estimate spearmans rank between abundance and occurrence ----
 
@@ -27,8 +30,11 @@ bbs_spear$dataset <- 'breeding-bird survey'
 
 spearmans <- rbind(rls_spear, bbs_spear)
 
-# create plot comparing spearmans ranks
+# subset to only species with high quality models
+high_performance_species <- readRDS('results/high_performance_species.RDS')
+spearmans <- spearmans %>% filter(species_name %in% gsub(' ','_',high_performance_species))
 
+# create plot comparing spearmans ranks
 spearmans_2 <- spearmans %>% 
   unique() %>% 
   group_by(dataset) %>% 
@@ -39,24 +45,23 @@ spearmans_2 <- spearmans %>%
          sd     = sd(cor))
 
 
-
 spearmans_plot <- ggplot(spearmans_2) + 
-  geom_histogram(aes(x = cor, col = dataset, fill = dataset), alpha = 0.2) + 
+  geom_histogram(aes(x = cor, col = dataset, fill = dataset), alpha = 0.5) + 
   geom_point(data = spearmans_2 %>% dplyr::select(dataset, mean) %>% unique(), aes(x = mean, 
                                                                                    y = c(3, 7.5), size = 2)) +
   geom_segment(data = spearmans_2 %>% dplyr::select(dataset, mean, sd) %>% unique(), aes(x = mean-sd, xend = mean+sd, 
                                                                                    y = c(3, 7.5), yend = c(3, 7.5)))+
   theme_bw() + 
   theme(legend.position = 'none',
-        aspect.ratio = 1, 
+        aspect.ratio = 0.5, 
         panel.grid = element_blank(),  
-        axis.text = element_text(size = 12),
+        axis.text = element_text(size = 16),
         strip.text.x = element_text(angle = 0, hjust = 0, size = 14),
-        axis.title = element_text(size = 14),
+        axis.title = element_text(size = 20),
         strip.background = element_blank())  + 
   facet_wrap(~dataset, scales = 'free') +
-  scale_colour_manual(values = c(viridis::viridis(5, option = 3)[4], viridis::viridis(5, option = 7)[3])) + 
-  scale_fill_manual(values = c(viridis::viridis(5, option = 3)[4], viridis::viridis(5, option = 7)[3])) + 
+  scale_colour_manual(values = c(viridis::viridis(10, option = 3)[5], viridis::viridis(10, option = 7)[5])) + 
+  scale_fill_manual(values = c(viridis::viridis(10, option = 3)[5], viridis::viridis(10, option = 7)[5])) + 
   xlab('spearmans rank between spatial projection \n of abundance and occurrence') + 
   ylab(NULL)
 
