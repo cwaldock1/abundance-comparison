@@ -51,6 +51,9 @@ saveRDS(high_performance_species, 'results/high_performance_species.RDS')
 
 # read in variable importance results ----
 
+# read in high performance species
+high_performance_species <- readRDS('results/high_performance_species.RDS')
+
 # load in file names
 vi_files <- list.files('results/variable_importance', recursive = T, full.names = T)
 
@@ -66,7 +69,6 @@ vi_read <- lapply(1:length(vi_files), function(x){
 # seperate into variable important and prediction value objects
 var_imp       <- do.call(rbind, lapply(vi_read, function(x) x[[1]]))
 pred_occ_abun <- do.call(rbind, lapply(vi_read, function(x) x[[2]]))
-
 
 # create plots of variable importance ----
 
@@ -101,7 +103,7 @@ agg_var_imp$dataset <- recode(as.character(agg_var_imp$dataset),
 # select colours
 colours = colorRampPalette(c("#0099CC80","#9ECAE1","#58BC5D","#EEF559","#FF9933","red"), bias = 1)(length(unique(agg_var_imp$covariate)))
 
-
+# aggregate plot
 agg_var_imp_plot <- ggplot(data = agg_var_imp) + 
   geom_abline() + 
   geom_segment(aes(x = occ_imp_mean, xend = occ_imp_mean,
@@ -134,6 +136,35 @@ pdf(file = 'figures/variable_importance/var_imp_plots/agg_var_imp_plot_rescaled.
 agg_var_imp_plot
 dev.off()
 
+# estimate overall spearmans rank values and save objects to file ----
+
+var_imp$dataset <- recode(as.character(var_imp$dataset),
+       'rls' = 'reef-life survey', 
+       'bbs' = 'breeding-bird survey')
+
+agg_var_imp %>% 
+  group_by(dataset) %>% 
+  do(spearmans_rank = cor.test(x = .$occ_imp_mean, y = .$abun_imp_mean, method = 'spearman')) %>% 
+  broom::tidy(spearmans_rank) %>% 
+  left_join(., var_imp %>% 
+              group_by(dataset) %>% 
+              do(spearmans_rank_all = cor.test(x = .$occurrence_imp, y = .$abundance_imp, method = 'spearman')) %>% 
+              broom::tidy(spearmans_rank_all) %>% 
+              unnest() %>% 
+              rename(., 
+                     'estimate_all' = 'estimate', 
+                     'statistic_all' = 'statistic', 
+                     'p.value_all'   = 'p.value') %>% select(estimate_all, statistic_all, p.value_all)) %>% 
+  left_join(., 
+            agg_var_imp %>% 
+              group_by(dataset) %>% 
+              do(r2 = summary(lm(.$occ_imp_mean ~ .$abun_imp_mean, data = .))$r.squared) %>% 
+              unnest()) %>% 
+  left_join(., var_imp %>% 
+              group_by(dataset) %>% 
+              do(r2_all = summary(lm(.$abundance_imp_rescaled ~ .$occurrence_imp_rescaled * .$covariate, data = .))$r.squared) %>% 
+              unnest()) %>% 
+  writexl::write_xlsx(., path = paste0('figures/variable_importance/var_imp_plots', '/', 'agg_var_importance_spearmans','.xlsx'))
 
 # perform t-tests for each variable to estimate if the mean values differ across all species ----
 
@@ -194,20 +225,278 @@ var_spear_plot <- ggplot(var_spear) +
   geom_segment(data = var_spear %>% select(dataset, mean, sd) %>% unique(), aes(x = mean-sd, xend = mean+sd, y = c(25/2, 10/2), yend = c(25/2, 10/2)))+
   theme_bw() + 
   theme(legend.position = 'none',
-        aspect.ratio = 1, 
+        aspect.ratio = 0.5, 
         panel.grid = element_blank(),  
-        axis.text = element_text(size = 12),
+        axis.text = element_text(size = 16),
         strip.text.x = element_text(angle = 0, hjust = 0, size = 14),
-        axis.title = element_text(size = 14),
+        axis.title = element_text(size = 20),
         strip.background = element_blank())  + 
   facet_wrap(~dataset, scales = 'free') +
-  scale_fill_manual(values = c(viridis::viridis(5, option = 3)[4], viridis::viridis(5, option = 7)[3])) + 
+  scale_fill_manual(values = c(viridis::viridis(10, option = 3)[5], viridis::viridis(10, option = 7)[5])) + 
   xlab('spearmans rank between variable importance scores \n of abundance and occurrence models') + 
   ylab(NULL)
   
 pdf(file = 'figures/variable_importance/var_imp_plots/var_spearmans_rank_plot.pdf', height = 5, width = 10)
 var_spear_plot
 dev.off()
+
+# write variable spearmans rank object to file
+saveRDS(var_spear, file = 'results/varimp_species_spearmans_rank.RDS')
+
+
+# correlation between correlations in variable importance scores and correlations in spatial patterns of occurrence and abundance ----
+
+var_spear     <- readRDS('results/varimp_species_spearmans_rank.RDS')
+spatial_spear <- readRDS('results/spatial_species_spearmans_rank.RDS')
+
+# harmoize data so compatable
+var_spear <- var_spear %>% 
+  rename('var_spear' = 'spearmans_rank') %>%
+  mutate(species_name = gsub(' ', '_', species_name)) %>%
+  ungroup() %>% 
+  select(dataset, species_name, var_spear)
+
+spatial_spear <- spatial_spear %>% 
+  rename('spatial_spear' = 'cor') %>% 
+  ungroup() %>% 
+  select(dataset, species_name, spatial_spear)
+
+# combine
+all_spear <- left_join(var_spear, spatial_spear)
+
+# perform tests
+spear_overall <- all_spear %>% 
+  group_by(dataset) %>% 
+  do(correlation = cor.test(x = .$var_spear, y = .$spatial_spear)) %>% 
+  broom::tidy(correlation) 
+
+# save model
+spear_overall %>% writexl::write_xlsx(., path = paste0('figures/variable_importance/var_imp_plots', '/', 'spatial_vs_variable_correlation','.xlsx'))
+
+# Pearson's product-moment correlation
+# data:  all_spear$var_spear and all_spear$spatial_spear
+# t = 7.8248, df = 1463, p-value = 9.679e-15
+# alternative hypothesis: true correlation is not equal to 0
+# 95 percent confidence interval:
+#  0.1507559 0.2490811
+# sample estimates:
+#       cor 
+# 0.2004231 
+
+# aggregate for points
+all_spear_agg <- all_spear %>% 
+  group_by(dataset) %>% 
+  do(mean_var_spear = mean(.$var_spear), 
+     sd_var_spear = sd(.$var_spear), 
+     mean_spatial_spear = mean(.$spatial_spear), 
+     sd_spatial_spear = sd(.$spatial_spear)) %>% 
+  unnest()
+
+lib_vect <- c('tidyverse', 'gridExtra', 'grid')
+install.lib<-lib_vect[!lib_vect %in% installed.packages()]
+for(lib in install.lib) install.packages(lib,dependencies=TRUE)
+sapply(lib_vect,require,character=TRUE)
+
+# manual theme function for histograms
+theme_hist <- function(){
+  theme(legend.position = 'none',
+      aspect.ratio = 0.5, 
+      panel.grid = element_blank(),  
+      axis.text = element_text(size = 16),
+      strip.text.x = element_text(angle = 0, hjust = 0, size = 14),
+      axis.title = element_text(size = 20),
+      strip.background = element_blank(), 
+      panel.border = element_blank(), 
+      axis.line = element_line())}
+
+# create empty plot to fill gap
+empty <- ggplot()+geom_point(aes(1,1), colour="white")+
+  theme(axis.ticks=element_blank(), 
+        panel.background=element_blank(), 
+        axis.text.x=element_blank(), axis.text.y=element_blank(),           
+        axis.title.x=element_blank(), axis.title.y=element_blank(), 
+        plot.margin = unit(c(0,0,0,0), "cm"))
+
+  
+# BBS CORRELATION COMPARISON PLOTS ----
+
+# bbs plot of both
+bbs_plot_cors <- ggplot(all_spear %>% filter(dataset == 'breeding-bird survey'), aes(x = var_spear, y = spatial_spear)) +
+  geom_density_2d() + 
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", alpha = 0.75, col = 'white', n =200, size = 0.1) + 
+  geom_point(alpha = 0.5, size = 2, stroke = 0) +
+  stat_smooth(method = 'lm', col = 'black', se = F) + 
+  scale_fill_viridis_c(option = 3, begin = 0.1, end = 0.9) + 
+  theme_bw() + 
+  theme(panel.grid = element_blank(), 
+        strip.background = element_blank(), 
+        aspect.ratio = 1, 
+        axis.text = element_text(size = 16),
+        strip.text.x = element_text(angle = 0, hjust = 0, size = 14),
+        axis.title = element_text(size = 20),
+        panel.background = element_blank(), 
+        panel.border = element_rect(colour = 'black', fill = 'transparent'), 
+        legend.position = 'none', 
+        plot.title = element_text(vjust = -12, hjust = 0.1, size = 15), 
+        plot.margin = unit(c(0,0,0,0), "cm")) + 
+  ylim(-1, 1.1) + 
+  xlim(-1, 1.1) + 
+  xlab('variable importance correlation') + 
+  ylab('spatial correlation') + 
+  ggtitle(label = bquote('rho' == .(signif(spear_overall[spear_overall$dataset == 'breeding-bird survey',]$estimate,2))~','~'\n'~'p <' ~ .(0.001))) 
+  
+bbs_var_hist <- ggplot(all_spear %>% filter(dataset == 'breeding-bird survey')) + 
+  geom_histogram(aes(x = var_spear, fill = dataset), alpha = 1) + 
+  geom_point(data = all_spear_agg %>% filter(dataset == 'breeding-bird survey'), aes(x = mean_var_spear, y=30), size = 4) +
+  geom_segment(data = all_spear_agg %>% filter(dataset == 'breeding-bird survey'), 
+               aes(x = mean_var_spear-sd_var_spear, xend = mean_var_spear+sd_var_spear, y = 30, yend = 30), size = 1.1) +
+  theme_bw() + 
+  theme_hist() +
+  theme(aspect.ratio = 0.2, 
+        axis.text.x = element_blank(), 
+        plot.margin = unit(c(0,0,0,0), "cm"), 
+        axis.line.x = element_blank(), 
+        axis.ticks.x = element_blank()) +
+  scale_colour_manual(values = c(viridis::viridis(10, option = 3, begin = 0.1, end = 0.9)[10])) + 
+  scale_fill_manual(values = c(viridis::viridis(10, option = 3, begin = 0.1, end = 0.9)[10])) + 
+  xlab(NULL) + 
+  ylab(NULL) + 
+  xlim(-1, 1.1)  + 
+  scale_y_continuous(breaks = c(0, 50, 100))
+
+  
+
+bbs_spatial_hist <- ggplot(all_spear %>% filter(dataset == 'breeding-bird survey')) + 
+  geom_histogram(aes(x = spatial_spear, fill = dataset), alpha = 1) + 
+  geom_point(data = all_spear_agg %>% filter(dataset == 'breeding-bird survey'), aes(x = mean_spatial_spear, y=30), size = 4) +
+  geom_segment(data = all_spear_agg %>% filter(dataset == 'breeding-bird survey'), 
+               aes(x = mean_spatial_spear-sd_spatial_spear, xend = mean_spatial_spear+sd_spatial_spear, y = 30, yend = 30), size = 1.1) +
+  theme_bw() + 
+  theme_hist() +
+  theme(aspect.ratio = 5, 
+        axis.text.x = element_text(angle = 270, vjust = 0.5), 
+        axis.text.y = element_blank(), 
+        axis.line.y = element_blank(), 
+        axis.ticks.y = element_blank(),
+        plot.margin = unit(c(0,0,0,0), "cm")) + 
+  scale_colour_manual(values = c(viridis::viridis(10, option = 3, begin = 0.1, end = 0.9)[10])) + 
+  scale_fill_manual(values = c(viridis::viridis(10, option = 3, begin = 0.1, end = 0.9)[10])) + 
+  xlab(NULL) + 
+  ylab(NULL) + 
+  coord_flip() + 
+  xlim(-1, 1.1) + 
+  scale_y_continuous(breaks = c(0, 50, 100))
+
+library(patchwork)
+png('figures/correlation_comparisons/bbs_combination.png', width = 1750, height = 1750, res = 300)
+bbs_var_hist + plot_spacer() + bbs_plot_cors + bbs_spatial_hist + 
+  plot_layout(ncol = 2, nrow = 2, widths = c(1, 0.2), heights = c(0.2, 1))
+dev.off()
+
+
+
+# RLS CORRELATION COMPARISON PLOTS ----
+
+# rls plot of both
+rls_plot_cors <- ggplot(all_spear %>% filter(dataset == 'reef-life survey'), aes(x = var_spear, y = spatial_spear)) +
+  geom_density_2d() + 
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", alpha = 0.75, col = 'white', n =200, size = 0.1) + 
+  geom_point(alpha = 0.5, size = 2, stroke = 0) +
+  stat_smooth(method = 'lm', col = 'black', se = F) + 
+  scale_fill_viridis_c(option = 7, begin = 0.1, end = 0.9) + 
+  theme_bw() + 
+  theme(panel.grid = element_blank(), 
+        strip.background = element_blank(), 
+        aspect.ratio = 1, 
+        axis.text = element_text(size = 16),
+        strip.text.x = element_text(angle = 0, hjust = 0, size = 14),
+        axis.title = element_text(size = 20),
+        panel.background = element_blank(), 
+        panel.border = element_rect(colour = 'black', fill = 'transparent'), 
+        legend.position = 'none', 
+        plot.title = element_text(vjust = -12, hjust = 0.1, size = 15), 
+        plot.margin = unit(c(0,0,0,0), "cm")) + 
+  ylim(-1, 1.1) + 
+  xlim(-1, 1.1) + 
+  xlab('variable importance correlation') + 
+  ylab('spatial correlation') + 
+  ggtitle(label = bquote('rho' == .(signif(spear_overall[spear_overall$dataset == 'reef-life survey',]$estimate,2))~','~'\n'~'p <' ~ .(0.001))) 
+
+rls_var_hist <- ggplot(all_spear %>% filter(dataset == 'reef-life survey')) + 
+  geom_histogram(aes(x = var_spear, fill = dataset), alpha = 1) + 
+  geom_point(data = all_spear_agg %>% filter(dataset == 'reef-life survey'), aes(x = mean_var_spear, y=10), size = 4) +
+  geom_segment(data = all_spear_agg %>% filter(dataset == 'reef-life survey'), 
+               aes(x = mean_var_spear-sd_var_spear, xend = mean_var_spear+sd_var_spear, y = 10, yend = 10), size = 1.1) +
+  theme_bw() + 
+  theme_hist() +
+  theme(aspect.ratio = 0.2, 
+        axis.text.x = element_blank(), 
+        plot.margin = unit(c(0,0,0,0), "cm"), 
+        axis.line.x = element_blank(), 
+        axis.ticks.x = element_blank()) +
+  scale_colour_manual(values = c(viridis::viridis(10, option = 7, begin = 0.1, end = 0.9)[5])) + 
+  scale_fill_manual(values = c(viridis::viridis(10, option = 7, begin = 0.1, end = 0.9)[5])) + 
+  xlab(NULL) + 
+  ylab(NULL) + 
+  xlim(-1, 1.1) + 
+  scale_y_continuous(breaks = c(0,20,40, 60))
+
+rls_spatial_hist <- ggplot(all_spear %>% filter(dataset == 'reef-life survey')) + 
+  geom_histogram(aes(x = spatial_spear, fill = dataset), alpha = 1) + 
+  geom_point(data = all_spear_agg %>% filter(dataset == 'reef-life survey'), aes(x = mean_spatial_spear, y=10), size = 4) +
+  geom_segment(data = all_spear_agg %>% filter(dataset == 'reef-life survey'), 
+               aes(x = mean_spatial_spear-sd_spatial_spear, xend = mean_spatial_spear+sd_spatial_spear, y = 10, yend = 10), size = 1.1) +
+  theme_bw() + 
+  theme_hist() +
+  theme(aspect.ratio = 5, 
+        axis.text.x = element_text(angle = 270, vjust = 0.5), 
+        axis.text.y = element_blank(), 
+        axis.line.y = element_blank(), 
+        axis.ticks.y = element_blank(),
+        plot.margin = unit(c(0,0,0,0), "cm")) + 
+  scale_colour_manual(values = c(viridis::viridis(10, option = 7, begin = 0.1, end = 0.9)[5])) + 
+  scale_fill_manual(values = c(viridis::viridis(10, option = 7, begin = 0.1, end = 0.9)[5])) + 
+  xlab(NULL) + 
+  ylab(NULL) + 
+  coord_flip() + 
+  xlim(-1, 1.1) +
+  scale_y_continuous(breaks = c(0, 20, 40, 60))
+
+library(patchwork)
+png('figures/correlation_comparisons/rls_combination.png', width = 1750, height = 1750, res = 300)
+rls_var_hist + plot_spacer() + rls_plot_cors + rls_spatial_hist + 
+  plot_layout(ncol = 2, nrow = 2, widths = c(1, 0.2), heights = c(0.2, 1))
+dev.off()
+
+
+
+rls_plot_cors <- ggplot(all_spear %>% filter(dataset == 'reef-life survey'), aes(x = var_spear, y = spatial_spear)) +
+  geom_density_2d() + 
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", alpha = 0.75, col = 'white', n =200, size = 0.1) + 
+  geom_point(alpha = 0.5, size = 2, stroke = 0) +
+  stat_smooth(method = 'lm', col = 'black', se = F) + 
+  scale_fill_viridis_c(option = 3, begin = 0.1, end = 0.9) + 
+  facet_wrap(~dataset)  +
+  theme_bw() + 
+  theme(panel.grid = element_blank(), 
+        strip.background = element_blank(), 
+        aspect.ratio = 1, 
+        panel.background = element_blank(), 
+        panel.border = element_rect(colour = 'black', fill = 'transparent'), 
+        legend.position = 'none', 
+        plot.title = element_text(vjust = -15, hjust = 0.03, size = 10)) + 
+  ylim(-1, 1.1) + 
+  xlim(-1, 1.1) + 
+  xlab('variable importance correlation') + 
+  ylab('spatial correlation') + 
+  ggtitle(label = bquote('rho' == .(round(spear_overall[spear_overall$dataset == 'reef-life survey',]$estimate,2))~','~'\n'~'p <' ~ .(0.001))) 
+
+grid.arrange(bbs_plot_cors, rls_plot_cors, nrow = 1)
+
+png(file = )
+
+
+
 
 
 

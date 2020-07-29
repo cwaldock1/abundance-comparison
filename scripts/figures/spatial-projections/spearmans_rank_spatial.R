@@ -68,3 +68,6 @@ spearmans_plot <- ggplot(spearmans_2) +
 pdf(file = 'figures/spatial_projections/spearmans_cor.pdf', height = 5, width = 10)
 spearmans_plot
 dev.off()
+
+# write spatial projection spearmans rank to file to use in the script 05_occ_rf_varimp.R
+saveRDS(spearmans_2, file = 'results/spatial_species_spearmans_rank.RDS')
