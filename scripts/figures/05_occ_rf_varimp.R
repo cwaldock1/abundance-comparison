@@ -197,6 +197,27 @@ all_t.tests$covariate <- recode(as.character(all_t.tests$covariate),
 # write t.tests to csv to produce table
 writexl::write_xlsx(all_t.tests, path = paste0('figures/variable_importance/var_imp_plots', '/', 'var_importance_t.tests','.xlsx'))
 
+# perform t.test against 0 for variable importance score means and variance ----
+
+var_spear <- readRDS('results/varimp_species_spearmans_rank.RDS')
+
+var_spear %>% 
+  group_by(dataset) %>% 
+  do(t_test = t.test(.$spearmans_rank), 
+     mean   = mean(.$spearmans_rank)) %>% 
+  broom::tidy(t_test) %>% 
+  writexl::write_xlsx(., path = paste0('figures/variable_importance/var_imp_plots', '/', 'sp_var_importance_t.tests','.xlsx'))
+
+spatial_spear <- readRDS('results/spatial_species_spearmans_rank.RDS')
+
+spatial_spear %>% 
+  group_by(dataset) %>% 
+  do(t_test = t.test(.$cor), 
+     mean   = mean(.$cor)) %>% 
+  broom::tidy(t_test) %>% 
+  writexl::write_xlsx(., path = paste0('figures/spatial_projections_specieslevel', '/', 'species_projections_spearmans_t.tests','.xlsx'))
+
+
 
 # plots of spearmans rank correlations at species level between variables ----
 

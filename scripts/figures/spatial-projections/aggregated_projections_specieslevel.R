@@ -2,7 +2,7 @@
 
 
 # load packages and functions ----
-lib_vect <- c('tidyverse', 'sp', 'rgeos', 'raster', 'rnaturalearth', 'gridExtra', 'ggplot2')
+lib_vect <- c('tidyverse', 'sp', 'rgeos', 'raster', 'rnaturalearth', 'gridExtra', 'ggplot2', 'Hmisc')
 install.lib<-lib_vect[!lib_vect %in% installed.packages()]
 for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(lib_vect,require,character=TRUE)
@@ -24,6 +24,7 @@ rls_xy <- rls_xy %>% dplyr::select(SiteLatitude, SiteLongitude)
 rls_xy$richness <- 0
 rls_xy$occupancy_rate <- 0
 rls_xy$abundance <- 0
+rls_xy$disconnect <- 0
 
 # define dataset 
 dataset <- 'rls'
@@ -55,11 +56,12 @@ for(i in 1:length(unique(sp_proj_files))){
   rls_xy[c('occupancy_rate')] <- rls_xy[c('occupancy_rate')] + occupancy_rate_rescaled
   rls_xy[c('abundance')] <- rls_xy[c('abundance')] + abundance_rescaled
   rls_xy[c('richness')] <- rls_xy[c('richness')] + (sp_proj[c('presence')])
-  
+  rls_xy[sp_proj$presence != 0, c('disconnect')] <- rls_xy[sp_proj$presence != 0, c('disconnect')] + resid(lm(abundance_rescaled[sp_proj$presence != 0] ~ occupancy_rate_rescaled[sp_proj$presence != 0]))
+
 }
 
 # save output
-saveRDS(rls_xy, 'results/spatial_projections_specieslevel/rls_aggregated.RDS')
+saveRDS(rls_xy, 'results/spatial_projections_specieslevel/rls_aggregated_V2.RDS')
 
 rls_xy <- readRDS('results/spatial_projections_specieslevel/rls_aggregated.RDS')
 
@@ -68,10 +70,12 @@ rls_xy <- readRDS('results/spatial_projections_specieslevel/rls_aggregated.RDS')
 
 # read in aggregated properties
 rls_abun_occ <- readRDS('results/spatial_projections_specieslevel/rls_aggregated.RDS')
+rls_abun_occ <- readRDS('results/spatial_projections_specieslevel/rls_aggregated_V2.RDS')
 
 # average to a species level
 rls_abun_occ$occupancy_rate <- rls_abun_occ$occupancy_rate / rls_abun_occ$richness
 rls_abun_occ$abundance      <- rls_abun_occ$abundance / rls_abun_occ$richness
+rls_abun_occ$disconnect      <- rls_abun_occ$disconnect / rls_abun_occ$richness
 
 # create a spatial buffer of 2° around all sites within which to investigate biodiversity patterns
 load("data/rls_covariates.RData")
@@ -79,9 +83,9 @@ rls_xy = rls_xy[c('SiteLongitude',
                   'SiteLatitude')]
 rls_xy_sp <- SpatialPoints(rls_xy)
 crs(rls_xy_sp) <- '+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0'
-rls_xy_sp_buffer <- gBuffer(rls_xy_sp, width = 2)
-save(rls_xy_sp_buffer, file = 'figures/spatial_projections/rls_polygons.RData')
-
+# rls_xy_sp_buffer <- gBuffer(rls_xy_sp, width = 2)
+# save(rls_xy_sp_buffer, file = 'figures/spatial_projections/rls_polygons.RData')
+load(file = 'figures/spatial_projections/rls_polygons.RData')
 
 # crop to buffer
 pointsDF <- SpatialPointsDataFrame(SpatialPoints(coordinates(cbind(rls_abun_occ$SiteLongitude, rls_abun_occ$SiteLatitude))),
@@ -116,7 +120,7 @@ rls_cor <- cor.test(rls_abun_occ$occupancy_rate, rls_abun_occ$abundance, method 
 #       rho 
 # 0.2523325 
 
-png(filename = 'figures/spatial_projections_specieslevel/aggregated_distributions/rls/spatial_maps.png', width = 1200, height = 5000, res = 300)
+png(filename = 'figures/spatial_projections_specieslevel/aggregated_distributions/rls/spatial_maps_V2.png', width = 1200, height = 5000, res = 300)
 grid.arrange(
   ggplot(data = world) +
     geom_tile(data = rls_abun_occ, aes(y = SiteLatitude, x = SiteLongitude, fill = occupancy_rate)) + 
@@ -146,15 +150,15 @@ grid.arrange(
   
   # add plot of residuals between abundance and occurrence
   ggplot(data = world) +
-    geom_tile(data = rls_abun_occ, aes(y = SiteLatitude, x = SiteLongitude, fill = abundance_residual)) + 
+    geom_tile(data = rls_abun_occ, aes(y = SiteLatitude, x = SiteLongitude, fill = disconnect)) + 
     geom_sf(col = 'black', fill= 'gray90', lwd = 0.2) + 
     xlim(range(rls_abun_occ$SiteLongitude)) + 
     ylim(range(rls_abun_occ$SiteLatitude)) + 
     theme(legend.position = c(0.2, 0.1)) + 
     scale_fill_gradientn(colours = c(blue2, blue1, mid,  mid, mid, red1, red2),
-                         values = c(-max(rls_abun_occ$abundance_residual), -0.01, -0.005, 
+                         values = c(min(rls_abun_occ$disconnect), -0.0002, -0.0001, 
                                     0, 
-                                    0.005, 0.01, max(rls_abun_occ$abundance_residual)),
+                                    0.0001, 0.0002, max(rls_abun_occ$disconnect)),
                          rescaler = function(x,...) x,
                          name = NULL, guide = guide_colourbar(direction = 'horizontal')) +
     theme(panel.background = element_blank(), 
@@ -163,22 +167,35 @@ grid.arrange(
           axis.text = element_blank(), 
           axis.ticks = element_blank()),
   
-  ggplot(data = rls_abun_occ) +
-    geom_point(data = rls_abun_occ, aes(y = abundance, x = occupancy_rate, fill = abundance_residual), alpha = 0.5, pch = 21, stroke=0 ) + 
-    stat_smooth(data = rls_abun_occ, aes(y = abundance, x = occupancy_rate), method = 'lm', se = F, colour = 'black') + 
+  ggplot(rls_abun_occ) + 
+    geom_histogram(data =rls_abun_occ, aes(x = disconnect, fill = ..x..)) + 
     scale_fill_gradientn(colours = c(blue2, blue1, mid,  mid, mid, red1, red2),
-                         values = c(-max(rls_abun_occ$abundance_residual), -0.01, -0.005, 
+                         values = c(min(rls_abun_occ$disconnect), -0.0002, -0.0001, 
                                     0, 
-                                    0.005, 0.01, max(rls_abun_occ$abundance_residual)),
+                                    0.0001, 0.0002, max(rls_abun_occ$disconnect)),
                          rescaler = function(x,...) x,
                          name = NULL, guide = guide_colourbar(direction = 'horizontal')) +
-    ggtitle(label = bquote('rho' == .(signif(rls_cor$estimate,2))~','~'\n'~'p <' ~ .(0.001))) + 
     theme(panel.background = element_blank(), 
           panel.border = element_rect(colour = 'black', fill = 'transparent'), 
           legend.position = 'none', 
-          plot.title = element_text(vjust = -8, hjust = 0.05, size = 10)) + 
-    ylab('species mean abundance') + 
-    xlab('species mean occupancy probability'),
+          plot.title = element_text(vjust = -8, hjust = 0.05, size = 10)), 
+    
+  # gplot(data = rls_abun_occ) +
+  #  geom_point(data = rls_abun_occ, aes(y = abundance, x = occupancy_rate, fill = disconnect), alpha = 0.5, pch = 21, stroke=0 ) + 
+  #  stat_smooth(data = rls_abun_occ, aes(y = abundance, x = occupancy_rate), method = 'lm', se = F, colour = 'black') + 
+  #  scale_fill_gradientn(colours = c(blue2, blue1, mid,  mid, mid, red1, red2),
+  #                       values = c(-max(rls_abun_occ$abundance_residual), -0.01, -0.005, 
+  #                                  0, 
+  #                                  0.005, 0.01, max(rls_abun_occ$abundance_residual)),
+  #                       rescaler = function(x,...) x,
+  #                       name = NULL, guide = guide_colourbar(direction = 'horizontal')) +
+  #  ggtitle(label = bquote('rho' == .(signif(rls_cor$estimate,2))~','~'\n'~'p <' ~ .(0.001))) + 
+  #  theme(panel.background = element_blank(), 
+  #        panel.border = element_rect(colour = 'black', fill = 'transparent'), 
+  #        legend.position = 'none', 
+  #        plot.title = element_text(vjust = -8, hjust = 0.05, size = 10)) + 
+  #  ylab('species mean abundance') + 
+  #  xlab('species mean occupancy probability'),
   
   ncol = 1
   
@@ -190,6 +207,28 @@ dev.off()
 ## perform seperate random forests for positive residuals and negative residuals!
 ## this will be a cool way to tell when we expect high abundance than occurrence (competitive advantage - more niche space?)
 # and high occurrence than abundance (forced niche partitioning with compromise for abundance)
+
+# whats the mean disconnect for rls ---- 
+
+rls_abun_occ %>% 
+  filter(abundance_residual >= 0) %>% 
+  do(mean = mean(.$abundance_residual), 
+     median = median(.$abundance_residual),
+     sd   = sd(.$abundance_residual)) %>% unnest()
+# mean median     sd
+# <dbl>  <dbl>  <dbl>
+# 1 0.0169 0.0105 0.0184
+
+rls_abun_occ %>% 
+  filter(abundance_residual <= 0) %>% 
+  do(mean = mean(.$abundance_residual), 
+     median = median(.$abundance_residual),
+     sd   = sd(.$abundance_residual)) %>% unnest()
+# mean  median     sd
+# <dbl>   <dbl>  <dbl>
+# -0.0132 -0.0105 0.0105
+
+summary(abs(rls_abun_occ$abundance_residual))
 
 # random forests for rls data ----
 
@@ -218,11 +257,20 @@ rls_covariates <- rename(rls_covariates,
                          'climate PC3' = 'robPCA_3')
 rls_cov_names <- c('climate PC1', 'climate PC2', 'climate PC3', 'human', 'sst', 'wave energy', 'reef area', 'depth/elevation')
 
+# create stratified sample
+rls_abun_occ_sampled <- rls_abun_occ %>% 
+  mutate(sample_cut = cut2(.$abundance_residual, g = 5, onlycuts = F)) %>% 
+  group_by(sample_cut) %>% 
+  nest() %>% 
+  mutate(samples = purrr::map(data, ~.[sample(1:nrow(.), 10000, replace = T),])) %>% 
+  dplyr::select(-data) %>% 
+  unnest(samples) %>% ungroup()
+
 # projection data
-rls_abun_occ_positive_residual <- rls_abun_occ %>% filter(abundance_residual > 0)
-rls_abun_occ_positive_residual <- rls_abun_occ_positive_residual[sample(1:nrow(rls_abun_occ_positive_residual), 5000),]
-rls_abun_occ_negative_residual <- rls_abun_occ %>% filter(abundance_residual < 0)
-rls_abun_occ_negative_residual <- rls_abun_occ_negative_residual[sample(1:nrow(rls_abun_occ_negative_residual), 5000),]
+rls_abun_occ_positive_residual <- rls_abun_occ_sampled %>% filter(abundance_residual > 0)
+#rls_abun_occ_positive_residual <- rls_abun_occ_positive_residual[sample(1:nrow(rls_abun_occ_positive_residual), 5000),]
+rls_abun_occ_negative_residual <- rls_abun_occ_sampled %>% filter(abundance_residual < 0)
+#rls_abun_occ_negative_residual <- rls_abun_occ_negative_residual[sample(1:nrow(rls_abun_occ_negative_residual), 5000),]
 
 # directories and names
 base_dir <- 'figures/spatial_projections_specieslevel/pdp_varimp'
@@ -254,8 +302,8 @@ partial_dependence_plots(covariates = rls_covariates,
                          option = ifelse(dataset == 'rls', 'viridis', 3), 
                          N = 6)
 
-# Mean of squared residuals: 0.2372335
-# % Var explained: 93.02
+# Mean of squared residuals: 5.953594e-06
+# % Var explained: 98.62
 
 
 
@@ -267,6 +315,7 @@ bbs_xy <- bbs_xy %>% dplyr::select(SiteLatitude, SiteLongitude)
 bbs_xy$richness <- 0
 bbs_xy$occupancy_rate <- 0
 bbs_xy$abundance <- 0
+bbs_xy$disconnect <- 0
 
 # define dataset 
 dataset <- 'bbs'
@@ -301,19 +350,21 @@ for(i in 1:length(unique(sp_proj_files))){
   bbs_xy[c('occupancy_rate')] <- bbs_xy[c('occupancy_rate')] + occupancy_rate_rescaled
   bbs_xy[c('abundance')] <- bbs_xy[c('abundance')] + abundance_rescaled
   bbs_xy[c('richness')] <- bbs_xy[c('richness')] + (sp_proj[c('presence')])
+  bbs_xy[sp_proj$presence != 0, c('disconnect')] <- bbs_xy[sp_proj$presence != 0, c('disconnect')] + resid(lm(abundance_rescaled[sp_proj$presence != 0] ~ occupancy_rate_rescaled[sp_proj$presence != 0]))
   
   print(nrow(na.omit(bbs_xy)))
   
 }
 
 # save output
-saveRDS(bbs_xy, 'results/spatial_projections_specieslevel/bbs_aggregated.RDS')
+# saveRDS(bbs_xy, 'results/spatial_projections_specieslevel/bbs_aggregated.RDS')
+saveRDS(bbs_xy, 'results/spatial_projections_specieslevel/bbs_aggregated_V2.RDS') # v2 is with the disconnect estimated
 
 
 # plot bbs aggregation ----
 
 # read in aggregated properties
-bbs_abun_occ <- readRDS('results/spatial_projections_specieslevel/bbs_aggregated.RDS')
+bbs_abun_occ <- readRDS('results/spatial_projections_specieslevel/bbs_aggregated_V2.RDS')
 
 # remove empty grid cells
 bbs_abun_occ <- bbs_abun_occ[-which(bbs_abun_occ$richness==0),]
@@ -321,6 +372,7 @@ bbs_abun_occ <- bbs_abun_occ[-which(bbs_abun_occ$richness==0),]
 # average to a species level
 bbs_abun_occ$occupancy_rate <- bbs_abun_occ$occupancy_rate / bbs_abun_occ$richness
 bbs_abun_occ$abundance      <- bbs_abun_occ$abundance / bbs_abun_occ$richness
+bbs_abun_occ$disconnect     <- bbs_abun_occ$disconnect / bbs_abun_occ$richness
 
 
 # create a spatial buffer of 2° around all sites within which to investigate biodiversity patterns
@@ -329,8 +381,8 @@ bbs_xy = bbs_xy[c('SiteLongitude',
                   'SiteLatitude')]
 bbs_xy_sp <- SpatialPoints(bbs_xy)
 crs(bbs_xy_sp) <- '+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0'
-bbs_xy_sp_buffer <- gBuffer(bbs_xy_sp, width = 2)
-save(bbs_xy_sp_buffer, file = 'figures/spatial_projections/bbs_polygons.RData')
+#bbs_xy_sp_buffer <- gBuffer(bbs_xy_sp, width = 2)
+#save(bbs_xy_sp_buffer, file = 'figures/spatial_projections/bbs_polygons.RData')
 load('figures/spatial_projections/bbs_polygons.RData')
 
 # create map of countries
@@ -371,7 +423,7 @@ bbs_cor <- cor.test(bbs_abun_occ$occupancy_rate, bbs_abun_occ$abundance, method 
 #       rho 
 # 0.2751153 
 
-png(filename = 'figures/spatial_projections_specieslevel/aggregated_distributions/bbs/spatial_maps.png', width = 2200, height = 4500, res = 300)
+png(filename = 'figures/spatial_projections_specieslevel/aggregated_distributions/bbs/spatial_maps_V2.png', width = 2200, height = 4500, res = 300)
 grid.arrange(
   ggplot(data = st_as_sf(usa_2)) +
     geom_tile(data = bbs_abun_occ, aes(y = SiteLatitude, x = SiteLongitude, fill = occupancy_rate)) + 
@@ -395,40 +447,71 @@ grid.arrange(
           axis.text = element_blank(), 
           axis.ticks = element_blank()),
   
-  # add plot of residuals between abundance and occurrence
   ggplot(data = st_as_sf(usa_2)) +
-    geom_tile(data = bbs_abun_occ, aes(y = SiteLatitude, x = SiteLongitude, fill = abundance_residual)) + 
+    geom_tile(data = bbs_abun_occ, aes(y = SiteLatitude, x = SiteLongitude, fill = disconnect)) + 
     geom_sf(col = 'black', fill= 'transparent', lwd = 0.2) + 
+    xlim(range(bbs_abun_occ$SiteLongitude)) + 
+    ylim(range(bbs_abun_occ$SiteLatitude)) + 
     theme(legend.position = c(0.15, 0.1)) + 
     scale_fill_gradientn(colours = c(blue2, blue1, mid,  mid, mid, red1, red2),
-                         values = c(-max(bbs_abun_occ$abundance_residual), -0.01, -0.005, 
+                         values = c(min(bbs_abun_occ$disconnect), -0.0002, -0.0001, 
                                     0, 
-                                    0.005, 0.01, max(bbs_abun_occ$abundance_residual)),
+                                    0.0001, 0.0002, max(bbs_abun_occ$disconnect)),
                          rescaler = function(x,...) x,
-                         name = NULL, guide = guide_colourbar(direction = 'horizontal'), 
-                         breaks = c(-0.04, 0, 0.04)) +
+                         name = NULL, guide = guide_colourbar(direction = 'horizontal')) +
     theme(panel.background = element_blank(), 
           panel.border = element_rect(colour = 'black', fill = 'transparent'), 
           axis.title   = element_blank(), 
           axis.text = element_blank(), 
           axis.ticks = element_blank()),
   
-  ggplot(data = bbs_abun_occ) +
-    geom_point(data = bbs_abun_occ, aes(y = abundance, x = occupancy_rate, fill = abundance_residual), alpha = 0.5, pch = 21, stroke=0 ) + 
-    stat_smooth(data = bbs_abun_occ, aes(y = abundance, x = occupancy_rate), method = 'lm', se = F, colour = 'black') + 
+  ggplot(bbs_abun_occ) + 
+    geom_histogram(data =bbs_abun_occ, aes(x = disconnect, fill = ..x..)) + 
     scale_fill_gradientn(colours = c(blue2, blue1, mid,  mid, mid, red1, red2),
-                         values = c(-max(bbs_abun_occ$abundance_residual), -0.01, -0.005, 
+                         values = c(min(bbs_abun_occ$disconnect), -0.0002, -0.0001, 
                                     0, 
-                                    0.005, 0.01, max(bbs_abun_occ$abundance_residual)),
+                                    0.0001, 0.0002, max(bbs_abun_occ$disconnect)),
                          rescaler = function(x,...) x,
                          name = NULL, guide = guide_colourbar(direction = 'horizontal')) +
-    ggtitle(label = bquote('rho' == .(signif(bbs_cor$estimate,2))~','~'\n'~'p <' ~ .(0.001))) + 
     theme(panel.background = element_blank(), 
           panel.border = element_rect(colour = 'black', fill = 'transparent'), 
           legend.position = 'none', 
-          plot.title = element_text(vjust = -8, hjust = 0.03, size = 10)) + 
-    xlab('summed occupancy probability') + 
-    ylab('summed abundance'),
+          plot.title = element_text(vjust = -8, hjust = 0.05, size = 10)), 
+  
+  # # add plot of residuals between abundance and occurrence
+  # ggplot(data = st_as_sf(usa_2)) +
+  #   geom_tile(data = bbs_abun_occ, aes(y = SiteLatitude, x = SiteLongitude, fill = abundance_residual)) + 
+  #   geom_sf(col = 'black', fill= 'transparent', lwd = 0.2) + 
+  #   theme(legend.position = c(0.15, 0.1)) + 
+  #   scale_fill_gradientn(colours = c(blue2, blue1, mid,  mid, mid, red1, red2),
+  #                        values = c(-max(bbs_abun_occ$abundance_residual), -0.01, -0.005, 
+  #                                   0, 
+  #                                   0.005, 0.01, max(bbs_abun_occ$abundance_residual)),
+  #                        rescaler = function(x,...) x,
+  #                        name = NULL, guide = guide_colourbar(direction = 'horizontal'), 
+  #                        breaks = c(-0.04, 0, 0.04)) +
+  #   theme(panel.background = element_blank(), 
+  #         panel.border = element_rect(colour = 'black', fill = 'transparent'), 
+  #         axis.title   = element_blank(), 
+  #         axis.text = element_blank(), 
+  #         axis.ticks = element_blank()),
+  # 
+  # ggplot(data = bbs_abun_occ) +
+  #   geom_point(data = bbs_abun_occ, aes(y = abundance, x = occupancy_rate, fill = abundance_residual), alpha = 0.5, pch = 21, stroke=0 ) + 
+  #   stat_smooth(data = bbs_abun_occ, aes(y = abundance, x = occupancy_rate), method = 'lm', se = F, colour = 'black') + 
+  #   scale_fill_gradientn(colours = c(blue2, blue1, mid,  mid, mid, red1, red2),
+  #                        values = c(-max(bbs_abun_occ$abundance_residual), -0.01, -0.005, 
+  #                                   0, 
+  #                                   0.005, 0.01, max(bbs_abun_occ$abundance_residual)),
+  #                        rescaler = function(x,...) x,
+  #                        name = NULL, guide = guide_colourbar(direction = 'horizontal')) +
+  #   ggtitle(label = bquote('rho' == .(signif(bbs_cor$estimate,2))~','~'\n'~'p <' ~ .(0.001))) + 
+  #   theme(panel.background = element_blank(), 
+  #         panel.border = element_rect(colour = 'black', fill = 'transparent'), 
+  #         legend.position = 'none', 
+  #         plot.title = element_text(vjust = -8, hjust = 0.03, size = 10)) + 
+  #   xlab('summed occupancy probability') + 
+  #   ylab('summed abundance'),
   
   nrow = 4, 
   ncol = 1
@@ -437,6 +520,27 @@ grid.arrange(
 dev.off()
 
 
+
+# whats the mean disconnect for bbs ---- 
+
+bbs_abun_occ %>% 
+  filter(abundance_residual >= 0) %>% 
+  do(mean = mean(.$abundance_residual), 
+     median = median(.$abundance_residual),
+     sd   = sd(.$abundance_residual)) %>% unnest()
+mean  median      sd
+<dbl>   <dbl>   <dbl>
+0.0110 0.00883 0.00931
+
+bbs_abun_occ %>% 
+  filter(abundance_residual <= 0) %>% 
+  do(mean = mean(.$abundance_residual), 
+     median = median(.$abundance_residual),
+     sd   = sd(.$abundance_residual)) %>% unnest()
+# A tibble: 1 x 3
+mean   median      sd
+<dbl>    <dbl>   <dbl>
+-0.0105 -0.00856 0.00811
 
 # random forests for bbs data ----
 
@@ -462,11 +566,20 @@ bbs_covariates <- rename(bbs_covariates,
                          'climate PC3' = 'robPCA_3')
 bbs_cov_names   <- c('climate PC1', 'climate PC2', 'climate PC3', 'human', 'forest', 'depth/elevation')
 
+# create stratified sample
+bbs_abun_occ_sampled <- bbs_abun_occ %>% 
+  mutate(sample_cut = cut2(.$abundance_residual, g = 5, onlycuts = F)) %>% 
+  group_by(sample_cut) %>% 
+  nest() %>% 
+  mutate(samples = purrr::map(data, ~.[sample(1:nrow(.), 10000, replace = T),])) %>% 
+  dplyr::select(-data) %>% 
+  unnest(samples) %>% ungroup()
+
 # projection data
-bbs_abun_occ_positive_residual <- bbs_abun_occ %>% filter(abundance_residual > 0)
-bbs_abun_occ_positive_residual <- bbs_abun_occ_positive_residual[sample(1:nrow(bbs_abun_occ_positive_residual), 5000),]
-bbs_abun_occ_negative_residual <- bbs_abun_occ %>% filter(abundance_residual < 0)
-bbs_abun_occ_negative_residual <- bbs_abun_occ_negative_residual[sample(1:nrow(bbs_abun_occ_negative_residual), 5000),]
+bbs_abun_occ_positive_residual <- bbs_abun_occ_sampled %>% filter(abundance_residual >= 0)
+#bbs_abun_occ_positive_residual <- bbs_abun_occ_positive_residual[sample(1:nrow(bbs_abun_occ_positive_residual), 5000),]
+bbs_abun_occ_negative_residual <- bbs_abun_occ_sampled %>% filter(abundance_residual <= 0)
+#bbs_abun_occ_negative_residual <- bbs_abun_occ_negative_residual[sample(1:nrow(bbs_abun_occ_negative_residual), 5000),]
 
 # directories and names
 base_dir <- 'figures/spatial_projections/pdp_varimp'
@@ -476,7 +589,7 @@ dataset  <- 'bbs'
 partial_dependence_plots(covariates = bbs_covariates,
                          cov_names  = bbs_cov_names, 
                          projections = bbs_abun_occ_positive_residual,
-                         base_dir = 'figures/spatial_projections/pdp_varimp', 
+                         base_dir = 'figures/spatial_projections_specieslevel/pdp_varimp', 
                          dataset = 'bbs', 
                          name = 'positive_abundance',
                          option = ifelse(dataset == 'rls', 'viridis', 3))
@@ -484,7 +597,7 @@ partial_dependence_plots(covariates = bbs_covariates,
 partial_dependence_plots(covariates = bbs_covariates,
                          cov_names  = bbs_cov_names, 
                          projections = bbs_abun_occ_negative_residual,
-                         base_dir = 'figures/spatial_projections/pdp_varimp', 
+                         base_dir = 'figures/spatial_projections_specieslevel/pdp_varimp', 
                          dataset = 'bbs', 
                          name = 'negative_abundance',
                          option = ifelse(dataset == 'rls', 'viridis', 3))
@@ -492,7 +605,7 @@ partial_dependence_plots(covariates = bbs_covariates,
 partial_dependence_plots(covariates = bbs_covariates,
                          cov_names  = bbs_cov_names, 
                          projections = rbind(bbs_abun_occ_positive_residual, bbs_abun_occ_negative_residual),
-                         base_dir = 'figures/spatial_projections/pdp_varimp', 
+                         base_dir = 'figures/spatial_projections_specieslevel/pdp_varimp', 
                          dataset = 'bbs', 
                          name = 'all_residuals',
                          option = ifelse(dataset == 'rls', 'viridis', 3), 
