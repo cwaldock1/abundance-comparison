@@ -218,6 +218,7 @@ species_spearmans_spatial <- function(spatial_dir,
 
 partial_dependence_plots <- function(covariates,
          cov_names, 
+         response_column,
          projections,
          base_dir, 
          dataset, 
@@ -233,9 +234,12 @@ partial_dependence_plots <- function(covariates,
   # join together spatial projections and covariates
   comb_proj <- left_join(projections, covariates)
   
+  # response data
+  response_y <- data.frame(comb_proj[,which(colnames(comb_proj) == response_column)])[,1]
+  
   # create formula for random forest
   rf_spatial <- randomForest(x = comb_proj[,which(colnames(comb_proj) %in% cov_names)], 
-                             y = comb_proj$abundance_residual, 
+                             y = response_y, 
                              ntree = 1000, 
                              importance=T, 
                              keep.inbag=T)
@@ -247,7 +251,7 @@ partial_dependence_plots <- function(covariates,
   # exploring using DALEX for visualisation
   exp_rf_spatial <- explain(model = rf_spatial, 
                             data  = comb_proj[,which(colnames(comb_proj) %in% cov_names)], 
-                            y = comb_proj$abundance_residual)
+                            y = response_y)
   
   # calculate variable importance
   vip <- model_parts(exp_rf_spatial, 
