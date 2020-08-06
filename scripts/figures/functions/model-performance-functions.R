@@ -842,25 +842,18 @@ spp_best_assessment_metrics_scale <- function(plot_data, # object after running 
                                               height = 10, 
                                         width = 8,
                                         outlier_quantile = 0.05,
+                                        spatial_filter = NULL,
                                         metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2'), 
-                                        targets = list(Armse    = c(0, -10, 10), 
-                                                       Amae     = c(0, -10, 10), 
-                                                       Dintercept  = c(0, -5, 5), 
-                                                       Dslope      = c(1,  0, 2), 
-                                                       Dpearson    = c(1,  0, 1), 
-                                                       Dspearman   = c(1,  0, 1), 
-                                                       Psd         = c(0,  0, 10), 
-                                                       Pdispersion = c(1,  0, 2), 
-                                                       Pr2         = c(1,  0, 1)), 
+                                        targets, 
                                         levels = c('glm', 'gam', 'gbm', 'rf'),
-                                        colours = c('gray20', 'gray80'),
+                                        colours = c(viridis(10, option = 3)[5], viridis(10, option = 7)[5]),
                                         directory, 
                                         name){
-  
+  require(viridis)
   plots_all <- list()
-  
+  t_v <- c()
   for(j in 1:length(metrics)){
-    
+    x = which(metrics %in% metrics[j])
     # set up levels
     if(j == 1){plot_data$fitted_model <- factor(as.factor(plot_data$fitted_model), levels)}
     print(j)
@@ -872,61 +865,94 @@ spp_best_assessment_metrics_scale <- function(plot_data, # object after running 
     # set boundaries
     lower = ifelse(metrics[j] %in% c('Dintercept'), T, F)
     upper = ifelse(metrics[j] %in% c('Dpearson', 'Dspearman', 'Pr2', 'Dintercept'), F, T)
-    t_v = targets[j][[1]]
+    t_v[j] = targets[j][[1]][1]
     decreasing = ifelse(metrics[j] %in% c('Armse', 'Amae', 'Dintercept', 'Psd'), T, F)
     
     # remove outliers
     metric_plot_data$metrics <- fix_outliers(as.numeric(metric_plot_data[metrics[j]][[1]]), outlier_quantile, lower = lower, upper = upper)
     
-    # metric_plot_data <- metric_plot_data %>%  
-    #   group_by(spatial_scale, cross_validation, dataset) %>% 
-    #   mutate(metrics_median = median(metrics), 
-    #          metrics_upr = quantile(metrics, 0.95), 
-    #          metrics_lwr = quantile(metrics, 0.05)) %>% 
-    #   select(spatial_scale, cross_validation, dataset, metrics_median, metrics_upr, metrics_lwr) %>% 
-    #   unique()
+    # aggregation for simpler plots
+    metric_plot_data <- metric_plot_data %>%  
+       group_by(spatial_scale, cross_validation, dataset) %>% 
+       mutate(metrics_median = median(metrics), 
+              metrics_upr = quantile(metrics, 0.7), 
+              metrics_lwr = quantile(metrics, 0.3)) %>% 
+       select(spatial_scale, cross_validation, dataset, metrics_median, metrics_upr, metrics_lwr) %>% 
+       unique()
     
     # convert spatial scale to numeric
     metric_plot_data$spatial_scale <- gsub('spatial_scale_', '', metric_plot_data$spatial_scale)
     
-    metric_plot_data$spatial_scale <- factor(metric_plot_data$spatial_scale, levels = c(0.1, 1, 5, 10, 20, 35, 50))
+    metric_plot_data$spatial_scale <- as.numeric(as.character(metric_plot_data$spatial_scale))
+    
+    if(!is.null(spatial_filter)){metric_plot_data <- metric_plot_data %>% filter(spatial_scale < spatial_filter)}
+
+    metric_plot_data$yintercept = ifelse(metrics[x] %in% c('Amae', 'Dintercept'), 0, 1)
+    
+    metric_plot_data$subtitle = metrics[x]
     
     # make plots
     require(viridis)
-   plots_all[[j]] <- 
-      ggplot(data = metric_plot_data) + 
-      geom_boxplot(aes(x = spatial_scale, y = metrics, fill = dataset, group = paste0(dataset, spatial_scale)), lwd = 0.5) +
-     geom_hline(aes(yintercept = t_v[1]), lty = 2, colour = 'gray50') +
-      theme_bw() + 
-        theme(aspect.ratio = 0.15, 
-            panel.grid.major.x = element_blank(), 
-            panel.grid.minor.x = element_blank(), 
-            axis.line.x = element_line(),
-            legend.position = 'none', 
-            panel.border = element_blank(), 
-            panel.grid.major = element_blank(), 
-            #axis.text.y = element_blank(), 
-            #axis.ticks.y = element_blank(), 
-            axis.title.x = element_blank(), 
-            axis.text.x = element_text(size = 10)) + 
-      #ggtitle(metrics[j]) + 
-      ylab(NULL) + 
-      scale_fill_manual(values = colours)
-    
+   plots_all[[j]] <- ggplot(data = metric_plot_data) + 
+     geom_ribbon(aes(x = spatial_scale, ymin = metrics_lwr, ymax = metrics_upr, fill = dataset, lty = cross_validation), alpha = 0.2) + 
+     geom_line(aes(x = spatial_scale, y = metrics_median, col = dataset, lty = cross_validation)) + 
+     geom_hline(aes(yintercept = as.numeric(unique(yintercept))), lty = 2, colour = 'gray50') + 
+     theme_bw() + 
+     theme(aspect.ratio = 1, 
+           panel.grid.major = element_blank(), 
+           panel.grid.minor = element_blank(), 
+           axis.line.x = element_line(),
+           axis.line.y = element_line(),
+           legend.position = 'none', 
+           panel.border = element_blank(), 
+           axis.title.x = element_blank(), 
+           axis.text = element_text(size = 12)) + 
+     ylab(NULL) + 
+     scale_fill_manual(values = colours) + 
+     scale_colour_manual(values = colours) + 
+     ggtitle(NULL, subtitle = unique(metric_plot_data$subtitle))
+   print(unique(metric_plot_data$yintercept))
+   rm(metric_plot_data)
+
   }
   
-  # combine plots
+  plots_all[[j]]$data$cross_validation <- ifelse(plots_all[[j]]$data$cross_validation == 'basic', 
+                                                 'within sample cv', 
+                                                 'out of sample cv')
+  plots_all[[j]]$data$dataset <- ifelse(plots_all[[j]]$data$dataset == 'bbs', 
+                                        'breeding bird survey', 
+                                        'reef life survey')
   
+  # get legend 
+  legend <- ggplot(data = plots_all[[j]]$data) + 
+    geom_ribbon(aes(x = spatial_scale, ymin = metrics_lwr, ymax = metrics_upr, fill = dataset, lty = cross_validation), alpha = 0.2) + 
+    geom_line(aes(x = spatial_scale, y = metrics_median, col = dataset, lty = cross_validation)) + 
+    geom_hline(aes(yintercept = as.numeric(unique(yintercept))), lty = 2, colour = 'gray50') + 
+    theme_minimal() + 
+    theme(aspect.ratio = 1, 
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(), 
+          axis.line.x = element_blank(),
+          axis.line.y = element_blank(),
+          panel.border = element_rect(fill = 'white', colour = 'white'), 
+          panel.background = element_rect(fill = 'white', colour = 'white'),
+          axis.title.x = element_blank(), 
+          axis.text = element_blank(), 
+          legend.position = c(0.5, 0.5)) + 
+    ylab(NULL) + 
+    scale_fill_manual(values = colours) + 
+    scale_colour_manual(values = colours) + 
+    labs(fill="dataset", lty="cross validation")
+
+  plots_all[[j+1]] <- legend
+  
+  # combine plots
+  require(patchwork)
   dir.create(directory, recursive = T) 
   pdf(file = paste0(directory, '/', name,'.pdf'), width = width, height = height, useDingbats = F)
-  all_plots <- do.call("grid.arrange", c(plots_all, ncol=1))
+  all_plots <- wrap_plots(plots_all, ncol = 4)
+  #all_plots <- do.call("grid.arrange", c(plots_all, ncol=4))
   print(all_plots)
-  dev.off()
-  
-  pdf(file = paste0(directory, '/', 'legend','.pdf'), width = width, height = height, useDingbats = F)
-  print(plot(get_legend(ggplot(data = metric_plot_data) + 
-                    geom_boxplot(aes(x = spatial_scale, y = metrics, fill = dataset, group = paste0(dataset, spatial_scale)), lwd = 0.5) + 
-                    scale_fill_manual(values = colours))))
   dev.off()
   
 }

@@ -19,7 +19,7 @@ source('scripts/evaluating-models/functions/evaluation_functions.R')
 
 bind_files <- list.files('results/predictions_all/bind', full.names = T)
 
-spatial_scale <- c(0.1, 1, 5, 10, 20, 35, 50)
+spatial_scale <- c(0.1, 0.5, 1, seq(2, 50, by = 2))
 
 #for(j in 1:length(spatial_scale)){
   

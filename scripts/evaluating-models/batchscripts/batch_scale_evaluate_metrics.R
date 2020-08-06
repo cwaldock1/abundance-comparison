@@ -4,7 +4,7 @@
 
 Nodes <- c('@RunAsMultiple, @Node_NODE18')
 
-spatial_scale <- c(0.1, 1, 5, 10, 20, 35, 50)
+spatial_scale <- c(0.1, 0.5, 1, seq(2, 50, by = 2)) #c(1, 5, 10, 20, 50)
 bind_files <- list.files('results/predictions_all/bind', full.names = T)
 
 

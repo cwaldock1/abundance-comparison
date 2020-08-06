@@ -139,32 +139,22 @@ all_assessments_relative <- all_assessments %>%
 best_model_assessments <- left_join(best_models , 
                                     all_assessments_relative %>% mutate(cross_validation = .$cross_validation_2))
 
+saveRDS(all_assessments_relative, file = 'results/model_assessment_scale/scale_compiled.RDS')
 
 # input data to function
 
+plot_data = best_model_assessments # for debugging function
+
 best_model_assessments %>% 
-  filter(cross_validation == 'basic') %>% 
-  spp_best_assessment_metrics_scale(., 
+  spp_best_assessment_metrics_scale(plot_data = ., 
                                     metrics = metrics,
                                     targets = targets, 
+                                    spatial_filter = 25,
+                                    outlier_quantile = 0,
                                     directory = 'figures/scale-performance-figures/best-model-barplots', 
-                                    name = 'basic', 
-                                    width = 4, 
-                                    height = 8, 
-                                    colours = colours[c(4,1)])
-
-best_model_assessments %>% 
-  filter(cross_validation == 'cv') %>% 
-  spp_best_assessment_metrics_scale(., 
-                              metrics = metrics, 
-                              targets = targets, 
-                              directory = 'figures/scale-performance-figures/best-model-barplots', 
-                              name = 'cv', 
-                              width = 4, 
-                              height = 8, 
-                              colours = colours[c(4,1)])
-
-
+                                    name = 'combined_plot', 
+                                    width = 8, 
+                                    height = 4)
 
 # barplots of the most discriminatory model ----
 
