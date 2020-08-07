@@ -57,6 +57,8 @@ best_models <- all_assessments %>%
          cross_validation = gsub('bbs_|rls_', '', .$cross_validation), 
          plot_level = .$best_model)
 
+saveRDS(best_models, file = 'results/overall_best_models.RDS')
+
 # plot observed vs. predicted abundances for all model types ----
 
 # results are downloaded from the server

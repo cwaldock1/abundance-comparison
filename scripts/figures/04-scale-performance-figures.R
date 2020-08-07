@@ -103,8 +103,65 @@ plot_all_aggregated_spatial_scale(all_assessments_relative$data[[2]] %>%
 
 # distribution of the values in models selected as 'best' ----
 
+# # find the best model for a species at the finest spatial scale
+# best_scale_0.1 <- all_assessments %>% 
+#   filter(spatial_scale == 'spatial_scale_0.1') %>% 
+#   select(-Armse, -Psd) %>% 
+#   # estimate the relative metric performance within a cross validation and dataset
+#   group_by(cross_validation_2, dataset) %>% 
+#   nest() %>% 
+#   mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(., 
+#                                                                 metrics = c('Amae', 'Dintercept', 'Dslope', 
+#                                                                             'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
+#   .$metric_aggregation %>% 
+#   do.call(rbind, .) %>% 
+#   na.omit(.) %>% 
+#   # find the best fitting model for each species within each fitted_model
+#   group_by(species_name, spatial_scale, cross_validation) %>% 
+#   do(best_model = .$plot_level[which.max(.$discrimination)]) %>% 
+#   unnest(cols = c('best_model')) %>% 
+#   select(-spatial_scale) 
+# 
+# # pre-able to filter the best models at a 0.1 scale from the total assessments of scale
+# all_best_scale_0.1 <- data.table(best_scale_0.1 %>% mutate(plot_level = best_model) %>% select(-best_model))
+
+# read in overall best model object
+overall_best_models <- readRDS('results/overall_best_models.RDS')
+overall_best_models <- data.table(overall_best_models)
+all_assessments_dt <- data.table(all_assessments)
+
+# join using data.table
+best_models_scale <- left_join(all_best_scale_0.1, all_assessments_dt)
+
+# edit names for labels 
+best_models_scale <- best_models_scale %>% mutate(dataset = gsub('_basic|_oob_cv','', .$cross_validation),
+       cross_validation = gsub('bbs_|rls_', '', .$cross_validation), 
+       plot_level = .$best_model) %>% 
+  mutate(dataset = plyr::revalue(.$dataset, c(bbs_cv = 'bbs', rls_cv = 'rls')))
+
+# save and read in best_models_scale object
+# saveRDS(best_models_scale, file = 'results/scale_best_models.RDS')
+best_models_scale <- readRDS(file = 'results/scale_best_models.RDS')
+
+# input data to function
+
+plot_data = best_models_scale # for debugging function
+
+best_models_scale %>% 
+  spp_best_assessment_metrics_scale(plot_data = ., 
+                                    metrics = metrics,
+                                    targets = targets, 
+                                    spatial_filter = 11,
+                                    outlier_quantile = 0,
+                                    directory = 'figures/scale-performance-figures/best-model-barplots', 
+                                    name = 'combined_plot', 
+                                    width = 8, 
+                                    height = 4)
+
+# barplots of the most discriminatory model ----
+
 # find the best model for a species
-best_models <- all_assessments %>% 
+best_models_each_scale <- all_assessments %>% 
   select(-Armse, -Psd) %>% 
   # estimate the relative metric performance within a cross validation and dataset
   group_by(cross_validation_2, dataset) %>% 
@@ -136,27 +193,11 @@ all_assessments_relative <- all_assessments %>%
   ungroup()
 
 # filter assessment metrics by best model and species combinations
-best_model_assessments <- left_join(best_models , 
+best_model_assessments <- left_join(best_models_each_scale , 
                                     all_assessments_relative %>% mutate(cross_validation = .$cross_validation_2))
 
-saveRDS(all_assessments_relative, file = 'results/model_assessment_scale/scale_compiled.RDS')
+#saveRDS(best_model_assessments, file = 'results/model_assessment_scale/scale_compiled.RDS')
 
-# input data to function
-
-plot_data = best_model_assessments # for debugging function
-
-best_model_assessments %>% 
-  spp_best_assessment_metrics_scale(plot_data = ., 
-                                    metrics = metrics,
-                                    targets = targets, 
-                                    spatial_filter = 25,
-                                    outlier_quantile = 0,
-                                    directory = 'figures/scale-performance-figures/best-model-barplots', 
-                                    name = 'combined_plot', 
-                                    width = 8, 
-                                    height = 4)
-
-# barplots of the most discriminatory model ----
 
 # calculate proportions
 best_model_props <- best_model_assessments %>% 
@@ -169,7 +210,8 @@ best_model_props <- best_model_assessments %>%
 
 # edit levels
 best_model_props$spatial_scale = gsub('spatial_scale_', '', best_model_props$spatial_scale)
-best_model_props$spatial_scale = factor(best_model_props$spatial_scale, levels = unique(best_model_props$spatial_scale)[c(1,2,6,3,4,5,7)])
+best_model_props <- best_model_props %>% ungroup %>% mutate(spatial_scale = as.numeric(spatial_scale)) %>%  filter(spatial_scale < 11)
+best_model_props$spatial_scale = factor(best_model_props$spatial_scale, levels = sort(unique(best_model_props$spatial_scale)))
 best_model_props$fitted_model = factor(best_model_props$fitted_model, levels = levels)
 best_model_props$cross_validation = factor(best_model_props$cross_validation, labels = c('within-sample', 'out-of-sample'))
 best_model_props$dataset = factor(best_model_props$dataset, labels = c('breeding-bird survey', 'reef-life survey'))
@@ -179,52 +221,47 @@ dir.create('figures/scale-performance-figures/best-model-counts')
 pdf('figures/scale-performance-figures/best-model-counts/best_model_counts.pdf', width = 7, height = 7)
 grid.arrange(
 ggplot(data = best_model_props %>% filter(dataset == 'breeding-bird survey')) + 
-  geom_bar(aes(x = fitted_model, y = proportion_best, fill = spatial_scale), position = 'dodge', stat = 'identity') + 
-  scale_fill_viridis_d(option = 3, end = 0.9) + 
+  geom_bar(aes(x = fitted_model, y = proportion_best, group = spatial_scale, fill = as.numeric(as.character(spatial_scale))), position = 'dodge', stat = 'identity') + 
+  scale_fill_viridis_c(option = 3, end = 0.9, 
+                       guide = guide_colourbar(direction = 'horizontal', barheight = 0.5, label.vjust = 0)) + 
   theme_bw() + 
   facet_grid(cross_validation ~ dataset) + 
   theme(panel.grid = element_blank(),
         aspect.ratio = 1, 
         strip.background = element_blank(), 
-        strip.text.x = element_text(hjust = 0, size = 10), 
-        legend.position = c(0.3,0.43), 
-        legend.background = element_blank()) + 
+        legend.position = 'bottom', 
+        legend.title = element_blank(),
+        legend.background = element_blank(), 
+        strip.text.x = element_blank(), 
+        strip.text.y = element_text(size = 12)) + 
   xlab(NULL) + 
-  ylab('proportion best fitted model within spatial scale') + 
-  guides(fill = guide_legend(nrow = 1, 
-                             label.position = 'bottom', 
-                             title='scale (grid-cell ° lat long)', 
-                             title.position = 'top', 
-                             title.theme = element_text(size = 8), 
-                             label.theme = element_text(size = 6), 
-                             keywidth = 0.75)),
+  ylab('proportion best fitted model within spatial scale'),
 
 ggplot(data = best_model_props %>% filter(dataset == 'reef-life survey')) + 
-  geom_bar(aes(x = fitted_model, y = proportion_best, fill = spatial_scale), position = 'dodge', stat = 'identity') + 
-  scale_fill_viridis_d(option = 7, end = 0.9) + 
+  geom_bar(aes(x = fitted_model, y = proportion_best, group = spatial_scale, fill = as.numeric(as.character(spatial_scale))), position = 'dodge', stat = 'identity') + 
+  scale_fill_viridis_c(option = 7, end = 0.9, 
+                       guide = guide_colourbar(direction = 'horizontal', barheight = 0.5, label.vjust = 0)) + 
   theme_bw() + 
   facet_grid(cross_validation ~ dataset) + 
   theme(panel.grid = element_blank(),
         aspect.ratio = 1, 
         strip.background = element_blank(), 
-        strip.text.x = element_text(hjust = 0, size = 10), 
-        legend.position = c(0.3,0.43), 
+        legend.position = 'bottom', 
+        legend.title = element_blank(),
         legend.background = element_blank(), 
-        axis.ticks.y = element_blank()) + 
+        strip.text.x = element_blank(),
+        strip.text.y = element_text(size = 12)) + 
   xlab(NULL) + 
-  ylab('proportion best fitted model within spatial scale') + 
-  guides(fill = guide_legend(nrow = 1, 
-                             label.position = 'bottom', 
-                             title='scale (grid-cell ° lat long)', 
-                             title.position = 'top', 
-                             title.theme = element_text(size = 8), 
-                             label.theme = element_text(size = 6), 
-                             keywidth = 0.75)), 
+  ylab('proportion best fitted model within spatial scale'), 
 nrow = 1)
 dev.off()
 
 
 # create table of scale by model performance values for best models ----
+
+best_model_assessments$spatial_scale = gsub('spatial_scale_', '', best_model_assessments$spatial_scale)
+best_model_assessments <- best_model_assessments %>% ungroup %>% mutate(spatial_scale = as.numeric(spatial_scale)) %>%  filter(spatial_scale < 11)
+
 
 writexl::write_xlsx(
 best_model_assessments %>% 
@@ -241,7 +278,7 @@ best_model_assessments %>%
   .[order(.$dataset, .$cross_validation, .$spatial_scale),] %>% 
   pivot_wider(., names_from = c(spatial_scale), values_from = c(mean, median, sd)) %>% 
   ungroup() %>% 
-  mutate_at(vars(c(mean_0.1:sd_50)), signif, digits = 2),
+  mutate_at(vars(c(mean_0.1:sd_10)), signif, digits = 2),
 path = 'figures/scale-performance-figures/metric_summary_table.xlsx')
   
   
@@ -295,6 +332,7 @@ list(best_model_assessments %>%
     pivot_wider(., names_from = 'spatial_scale', values_from = 'value') %>% 
     mutate_at(vars(c(`0.1`:`50`)), signif, digits = 2)),
 path = 'figures/scale-performance-figures/metric_percentage_table.xlsx')
+
 
 
 

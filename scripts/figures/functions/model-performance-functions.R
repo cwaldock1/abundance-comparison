@@ -874,9 +874,9 @@ spp_best_assessment_metrics_scale <- function(plot_data, # object after running 
     # aggregation for simpler plots
     metric_plot_data <- metric_plot_data %>%  
        group_by(spatial_scale, cross_validation, dataset) %>% 
-       mutate(metrics_median = median(metrics), 
-              metrics_upr = quantile(metrics, 0.7), 
-              metrics_lwr = quantile(metrics, 0.3)) %>% 
+       mutate(metrics_median = median(metrics, na.rm = T), 
+              metrics_upr = quantile(metrics, 0.75, na.rm = T), 
+              metrics_lwr = quantile(metrics, 0.25, na.rm = T)) %>% 
        select(spatial_scale, cross_validation, dataset, metrics_median, metrics_upr, metrics_lwr) %>% 
        unique()
     
@@ -894,7 +894,7 @@ spp_best_assessment_metrics_scale <- function(plot_data, # object after running 
     # make plots
     require(viridis)
    plots_all[[j]] <- ggplot(data = metric_plot_data) + 
-     geom_ribbon(aes(x = spatial_scale, ymin = metrics_lwr, ymax = metrics_upr, fill = dataset, lty = cross_validation), alpha = 0.2) + 
+     #geom_ribbon(aes(x = spatial_scale, ymin = metrics_lwr, ymax = metrics_upr, fill = dataset, lty = cross_validation), alpha = 0.2) + 
      geom_line(aes(x = spatial_scale, y = metrics_median, col = dataset, lty = cross_validation)) + 
      geom_hline(aes(yintercept = as.numeric(unique(yintercept))), lty = 2, colour = 'gray50') + 
      theme_bw() + 
@@ -919,6 +919,8 @@ spp_best_assessment_metrics_scale <- function(plot_data, # object after running 
   plots_all[[j]]$data$cross_validation <- ifelse(plots_all[[j]]$data$cross_validation == 'basic', 
                                                  'within sample cv', 
                                                  'out of sample cv')
+  plots_all[[j]]$data$cross_validation <- factor(plots_all[[j]]$data$cross_validation, 
+                                                 levels = c('within sample cv', 'out of sample cv'))
   plots_all[[j]]$data$dataset <- ifelse(plots_all[[j]]$data$dataset == 'bbs', 
                                         'breeding bird survey', 
                                         'reef life survey')
