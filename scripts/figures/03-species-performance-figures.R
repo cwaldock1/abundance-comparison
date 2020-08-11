@@ -2,7 +2,7 @@
 # and compare outputs across species
 
 # load packages ----
-lib_vect <- c('tidyverse', 'cowplot', 'RColorBrewer', 'gridExtra')
+lib_vect <- c('tidyverse', 'cowplot', 'RColorBrewer', 'gridExtra', 'viridis')
 install.lib<-lib_vect[!lib_vect %in% installed.packages()]
 for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(lib_vect,require,character=TRUE)
@@ -12,7 +12,6 @@ detach("package:raster", unload = TRUE)
 
 source('scripts/figures/functions/model-performance-functions.R')
 source('scripts/figures/functions/species-performance-functions.R')
-
 
 colours = colorRampPalette(c("#0099CC80","#9ECAE1","#58BC5D","#EEF559","#FF9933","red"), bias = 1)(4)
 
@@ -109,9 +108,6 @@ all_assessments_relative %>%
                        name = paste0(unique(.$dataset), '_', unique(.$cross_validation_2), '_species_performance')))
 
 
-
-
-
 # compare relative performance of best models across species and sampling properties ----
 
 # get the best models and their assessment values
@@ -205,19 +201,57 @@ best_model_assessments <- left_join(rbind(bbs_species, rls_species) %>% filter(s
 best_model_assessments$sampling_n_perc <- ecdf(best_model_assessments$Evaluation_number)(best_model_assessments$Evaluation_number)
 
 # create plots and model outputs 
+best_model_assessments %>% 
+  group_by(dataset, cross_validation) %>% 
+  nest() %>% 
+  .[1,] %>% 
+  mutate(test = purrr::map(data, ~interaction_trait_plots(., 
+                                 directory = 'figures/species-performance-figures/trait-interaction-models/', 
+                                 name      = paste(dataset, cross_validation, sep = '-'), 
+                                 dataset   = dataset, 
+                                 width_marginal     = 12, 
+                                 height_marginal    = 4)))
 
 best_model_assessments %>% 
   group_by(dataset, cross_validation) %>% 
   nest() %>% 
-  mutate(purrr::map(data, ~interaction_trait_plots(., 
-                                 directory = 'figures/species-performance-figures/trait-interaction-models/', 
-                                 name = paste(dataset, cross_validation, sep = '-'), 
-                                 width = 10, 
-                                 height = 8, 
-                                 option = ifelse(dataset == 'bbs', 3, 'viridis'))))
+  .[2,] %>% 
+  mutate(test = purrr::map(data, ~interaction_trait_plots(., 
+                                                          directory = 'figures/species-performance-figures/trait-interaction-models/', 
+                                                          name      = paste(dataset, cross_validation, sep = '-'), 
+                                                          width_marginal     = 13, 
+                                                          height_marginal    = 8, 
+                                                          dataset   = dataset)))
+
+best_model_assessments %>% 
+  group_by(dataset, cross_validation) %>% 
+  nest() %>% 
+  .[3,] %>% 
+  mutate(test = purrr::map(data, ~interaction_trait_plots(., 
+                                                          directory = 'figures/species-performance-figures/trait-interaction-models/', 
+                                                          name      = paste(dataset, cross_validation, sep = '-'), 
+                                                          width_marginal     = 8, 
+                                                          height_marginal    = 6, 
+                                                          dataset   = dataset)))
+
+best_model_assessments %>% 
+  group_by(dataset, cross_validation) %>% 
+  nest() %>% 
+  .[4,] %>% 
+  mutate(test = purrr::map(data, ~interaction_trait_plots(., 
+                                                          directory = 'figures/species-performance-figures/trait-interaction-models/', 
+                                                          name      = paste(dataset, cross_validation, sep = '-'), 
+                                                          width_marginal     = 8, 
+                                                          height_marginal    = 4, 
+                                                          dataset   = dataset)))
 
 
 
+# testing creating marginal effect plots for significant terms 
+best_model_assessments %>% 
+   group_by(dataset, cross_validation) %>% 
+   nest() %>% .$data %>% .[[4]] -> plot_data
+ 
 
 
 

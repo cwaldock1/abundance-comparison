@@ -104,6 +104,8 @@ saveRDS(rls_sum, 'data/scrap_rls_sum_object.rds')
 # calculate number of species available for analysis 
 length(unique(rls_sum$TAXONOMIC_NAME))
 
+rls_sum <- readRDS('data/scrap_rls_sum_object.rds')
+
 # filter to ensure all species have 50 presences per species 
 species_50 <- rls_sum %>% 
   filter(Num > 0) %>% 
@@ -148,8 +150,15 @@ abun <- rls_sum %>%
   unnest(mean_abundance)
 hist(log(abun$mean_abundance))
 
+# count number of observations per species 
+n_per_species <- rls_sum %>% 
+  filter(Num > 0) %>% 
+  group_by(TAXONOMIC_NAME) %>% 
+  do(n_per_species = length(unique(.$SiteCode))) %>% 
+  unnest(n_per_species)
+
 # combine into single dataframe
-species_properties <- left_join(abun,freq)
+species_properties <- left_join(left_join(abun,freq), n_per_species)
 
 # remove species with less that 50 records
 species_properties <- species_properties %>% filter(TAXONOMIC_NAME %in% species_50)

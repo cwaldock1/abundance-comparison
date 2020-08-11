@@ -183,8 +183,15 @@ bbs_abun <- bbs_filter_2 %>%
 
 hist(log(bbs_abun$mean_abundance))
 
+# count number of species
+n_per_species <- bbs_filter_2 %>% 
+  filter(Num > 0) %>% 
+  group_by(TAXONOMIC_NAME) %>% 
+  do(n_per_species = length(unique(.$SiteCode))) %>% 
+  unnest(n_per_species)
+
 # combine into single dataframe
-species_properties <- left_join(bbs_abun, bbs_freq2)
+species_properties <- left_join(left_join(bbs_abun, bbs_freq2), n_per_species)
 
 # remove species with less that 50 records
 species_properties <- species_properties %>% filter(TAXONOMIC_NAME %in% species_50)
