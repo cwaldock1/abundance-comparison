@@ -295,7 +295,7 @@ best_model_assessments %>%
                               name = 'basic', 
                               width = 6, 
                               height = 8, 
-                              colours = c('black', 'gray50'))
+                              colours = c(viridis(10, option = 3)[5], viridis(10, option = 7)[5]))
 
 best_model_assessments %>% 
   filter(cross_validation == 'cv') %>% 
@@ -304,9 +304,36 @@ best_model_assessments %>%
                               targets = targets, 
                               directory = 'figures/model-performance-figures/best-model-histograms', 
                               name = 'cv', 
-                              width = 8, height = 10, 
-                              colours = c('black', 'gray50'))
+                              width = 6, height = 8, 
+                              colours = c(viridis(10, option = 3)[5], viridis(10, option = 7)[5]))
 
+# summary table of best models across datasets ----
+
+basic_best_summary <- best_model_assessments %>% 
+  filter(cross_validation == 'basic') %>% 
+  group_by(dataset) %>% 
+  select(dataset, Armse:Pr2) %>% 
+  pivot_longer(., Armse:Pr2) %>% 
+  filter(name %in% metrics) %>% 
+  group_by(dataset, name) %>% 
+  do(median = median(.$value, na.rm = T), 
+     IQR.25 = quantile(.$value, 0.25, na.rm = T), 
+     IQR.75 = quantile(.$value, 0.75, na.rm = T)) %>% 
+  unnest()
+
+cv_best_summary <- best_model_assessments %>% 
+  filter(cross_validation == 'cv', ) %>%
+  group_by(dataset) %>% 
+  select(dataset, Armse:Pr2) %>% 
+  pivot_longer(., Armse:Pr2) %>% 
+  filter(name %in% metrics) %>% 
+  group_by(dataset, name) %>% 
+  do(median = median(.$value, na.rm = T), 
+     IQR.25 = quantile(.$value, 0.25, na.rm = T), 
+     IQR.75 = quantile(.$value, 0.75, na.rm = T)) %>% 
+  unnest()
+
+writexl::write_xlsx(list(basic_best_summary, cv_best_summary), 'figures/model-performance-figures/summary_table_aggregated.xlsx')
 
 # plots of rescaled values comparing between models including 'best' ----
 

@@ -799,27 +799,27 @@ spp_best_assessment_metrics <- function(plot_data, # object after running abunda
       scale_colour_manual(values = colours) + 
       xlim(c(min(metric_plot_data$metrics), max(metric_plot_data$metrics)))
     
-    labels <- metric_plot_data %>% 
-      group_by(dataset) %>% 
-      do(median_value = signif(median(.$metrics, na.rm = T),2)) %>% 
-      unnest() %>% .$median_value
-    
-    # create annotations with median values
-    for(i in 1:length(labels)){
-      plots_all[[j]] <- plots_all[[j]] +
-        annotation_custom(grob = textGrob(label = labels[i], 
-                                                 hjust = -0.2, 
-                                                 gp = gpar(cex = 1, 
-                                                           col = ifelse(i == 1, colours[1], colours[2])),                                          ),
-                                 ymin = ifelse(i==1, 1, 2),      # Vertical position of the textGrob
-                                 ymax = ifelse(i==1, 1, 2),
-                                 xmin = max(metric_plot_data$metrics),         # Note: The grobs are positioned outside the plot area
-                                 xmax = max(metric_plot_data$metrics))
-    }
-    # remove panel so that annotations can be viewed
-    gt <- ggplot_gtable(ggplot_build(plots_all[[j]]))
-    gt$layout$clip[gt$layout$name == "panel"] <- "off"
-    plots_all[[j]] <- gt
+    # labels <- metric_plot_data %>% 
+    #   group_by(dataset) %>% 
+    #   do(median_value = signif(median(.$metrics, na.rm = T),2)) %>% 
+    #   unnest() %>% .$median_value
+    # 
+    # # create annotations with median values
+    # for(i in 1:length(labels)){
+    #   plots_all[[j]] <- plots_all[[j]] +
+    #     annotation_custom(grob = textGrob(label = labels[i], 
+    #                                              hjust = -0.2, 
+    #                                              gp = gpar(cex = 1, 
+    #                                                        col = ifelse(i == 1, colours[1], colours[2])),                                          ),
+    #                              ymin = ifelse(i==1, 1, 2),      # Vertical position of the textGrob
+    #                              ymax = ifelse(i==1, 1, 2),
+    #                              xmin = max(metric_plot_data$metrics),         # Note: The grobs are positioned outside the plot area
+    #                              xmax = max(metric_plot_data$metrics))
+    # }
+    # # remove panel so that annotations can be viewed
+    # gt <- ggplot_gtable(ggplot_build(plots_all[[j]]))
+    # gt$layout$clip[gt$layout$name == "panel"] <- "off"
+    # plots_all[[j]] <- gt
     
     
     

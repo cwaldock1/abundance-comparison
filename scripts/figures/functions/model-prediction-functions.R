@@ -53,11 +53,11 @@ observed_predicted_plot <- function(input_data,
   
   # remove turn values that are <0 to NAs
   # rescale predictions
-  model_outputs$predicted <- pbapply::pblapply(model_outputs$validation_predict_mean, function(x) return(ifelse(x < 0, NA, x)))
-  model_outputs$predicted <- pbapply::pblapply(model_outputs$predicted, function(x) return(ifelse(x < 1, 1, x)))
-  model_outputs$predicted <- pbapply::pblapply(model_outputs$predicted, function(x) rescale_01(log10(x)))
+  model_outputs$predicted <- pbapply::pblapply(model_outputs$validation_predict_mean, function(x) return(ifelse(x < 0, x, x)))
+  #model_outputs$predicted <- pbapply::pblapply(model_outputs$predicted, function(x) return(ifelse(x < 1, 1, x)))
+  model_outputs$predicted <- pbapply::pblapply(model_outputs$predicted, function(x) rescale_01(log10(x+1)))
   # rescale observations
-  model_outputs$observed <- pbapply::pblapply(model_outputs$validation_observed_mean, function(x) rescale_01(log10(x)))
+  model_outputs$observed <- pbapply::pblapply(model_outputs$validation_observed_mean, function(x) rescale_01(log10(x+1)))
 
   # unnest using data.table because dplyr is slow for this much data
   model_outputs <- as_data_frame(unnest_dt2(model_outputs %>% select(-validation_observed_mean, -validation_predict_mean), predicted, observed))

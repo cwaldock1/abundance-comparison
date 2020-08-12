@@ -348,13 +348,24 @@ for(i in 1:length(model_type)){
   table(sapply(validation_data$validation_observed_mean, is.null))
   table(sapply(validation_data$validation_predict_mean, is.null))
   
+  # perform identical rescaling as in figure 4 to obtain gains in rescaling that reflect the figure. 
+  validation_data_rescaled <- validation_data %>% 
+    unnest(validation_observed_mean, validation_predict_mean) %>% 
+    # mutate(validation_predict_mean  = ifelse(validation_predict_mean < 0, NA, validation_predict_mean)) %>% 
+    mutate(validation_predict_mean  = ifelse(validation_predict_mean < 1, 1, validation_predict_mean)) %>% 
+    mutate(validation_predict_mean  = rescale_01(log10(validation_predict_mean)), 
+           validation_observed_mean = rescale_01(log10(validation_observed_mean))) %>% 
+    group_by(dataset, cross_validation, fitted_model, abundance_response, plot_level, species_name) %>% 
+    nest(validation_predict_mean=validation_predict_mean, 
+         validation_observed_mean=validation_observed_mean)
+    
   # apply the function abundance_assessment_metrics to a rescaled set of data, and compare to the non-rescaled set of data. 
   evaluations <-
     left_join(
-      validation_data %>% 
+      validation_data_rescaled %>% 
         rowwise() %>% 
-        do(metrics = abundance_assessment_metrics(predictions   = rescale_01(log10(.$validation_predict_mean+1)), 
-                                                  observations  = rescale_01(log10(.$validation_observed_mean+1)), 
+        do(metrics = abundance_assessment_metrics(predictions   = .$validation_predict_mean, 
+                                                  observations  = .$validation_observed_mean, 
                                                   locations = .$validation_locations,
                                                   scale = NULL)) %>% 
         unnest(metrics) %>% 
@@ -365,7 +376,7 @@ for(i in 1:length(model_type)){
         rowwise() %>% 
         do(metrics = abundance_assessment_metrics(predictions   = .$validation_predict_mean, 
                                                   observations  = .$validation_observed_mean, 
-                                                  locations = .$validation_locations,
+                                                  locations     = .$validation_locations,
                                                   scale = NULL)) %>% 
         unnest(metrics) %>% 
         bind_cols(validation_data[,1:6], .)
@@ -378,8 +389,9 @@ for(i in 1:length(model_type)){
     group_by(name) %>% 
     do(dataset = unique(.$dataset), 
        cross_validation = unique(.$cross_validation),
-       mean_value    = median(.$value, na.rm = T), 
-       sd_value       = sd(.$value, na.rm = T)) %>% 
+       median_value    = median(.$value, na.rm = T), 
+       IQR.25        = quantile(.$value, 0.25, na.rm = T), 
+       IQR.75        = quantile(.$value, 0.75, na.rm = T)) %>% 
     unnest()
   
   # select columns for plots
@@ -502,7 +514,6 @@ for(i in 1:length(model_type)){
   
   
   # combined intercept plots ----
-  
   
   d_intercept_xy <- 
     ggplot(data = evaluations) + 
