@@ -118,9 +118,9 @@ plot_data$frequency    <- as.numeric(scale(log10(plot_data$frequency), scale = T
 plot_data$observations <- as.numeric(scale(log10(plot_data$n_per_species), scale = T, center = T))
 
 # fit linear model
-model_accuracy       <- lm(accuracy       ~ abundance * frequency * observations, data = plot_data, na.action = 'na.fail')
-model_discrimination <- lm(discrimination ~ abundance * frequency * observations, data = plot_data, na.action = 'na.fail')
-model_precision      <- lm(precision      ~ abundance * frequency * observations, data = plot_data, na.action = 'na.fail')
+model_accuracy       <- lm(accuracy       ~ abundance*frequency + frequency*observations + abundance*observations, data = plot_data, na.action = 'na.fail')
+model_discrimination <- lm(discrimination ~ abundance*frequency + frequency*observations + abundance*observations, data = plot_data, na.action = 'na.fail')
+model_precision      <- lm(precision      ~ abundance*frequency + frequency*observations + abundance*observations, data = plot_data, na.action = 'na.fail')
 
 # perform model selection
 dredge_accuracy       <- dredge(model_accuracy)
@@ -278,10 +278,21 @@ plot_list <- list()
 
 colour = ifelse(dataset == 'bbs', 3, 7)
 
+# define global limits
+limits <- range(c(prediction_frame$accuracy_lwr, prediction_frame$discrimination_lwr, prediction_frame$precision_lwr, 
+        prediction_frame$accuracy_upr, prediction_frame$discrimination_upr, prediction_frame$precision_upr))
+
+limits[2] <- ifelse(limits[2] < 1, 1.01, limits[2])
+
+limits <- round_any(limits,0.1)
+
 plot_list <- lapply(1:nrow(sig_term), function(i){
   
   # first check if there is an interaction...
   interaction <- grepl(':', sig_term$term[i], fixed = T)
+  
+  terms <- str_split(sig_term$term[i], ':', simplify = F)[[1]]
+  
   if(interaction == T){
     
     terms <- str_split(sig_term$term[i], ':', simplify = F)[[1]]
@@ -298,16 +309,27 @@ plot_list <- lapply(1:nrow(sig_term), function(i){
                                             ymax=input_data[[i]][, paste0(sig_term$evaluation[i], '_upr')], 
                                             ymin=input_data[[i]][, paste0(sig_term$evaluation[i], '_lwr')], 
                                             group = input_data[[i]][,terms[2]], 
-                                            fill = input_data[[i]][,terms[2]]), alpha = 0.5) + 
+                                            fill = as.factor(round(input_data[[i]][,terms[2]],2))), alpha = 0.5) + 
     geom_line(data = input_data[[i]], aes(x = input_data[[i]][,terms[1]], 
                                           y = input_data[[i]][,sig_term$evaluation[i]],
                                           group = input_data[[i]][,terms[2]])) + 
-    scale_fill_gradientn(colours = viridis(3, option = colour), 
-                         name = terms[2]) + 
+    scale_fill_manual(values = viridis(3, option = colour), 
+                         name = terms[2], 
+                      guide = guide_legend(direction = 'horizontal',
+                        title.hjust = 0.5,
+                        nrow = 1, 
+                        label.position = 'bottom',
+                        keyheight = unit(2, units = "mm"),
+                        title.position = 'top',
+                        reverse = F)) + 
     xlab(terms[1]) + 
     ylab(sig_term$evaluation[i]) + 
-      theme(aspect.ratio = 1)
-    
+      theme(aspect.ratio = 2, 
+            legend.position = c(0.1,0.2), 
+            legend.text = element_text(size = 9), 
+            legend.title = element_text(size = 9)) + 
+      scale_y_continuous(breaks = seq(0, 1, 0.1), limits = limits) 
+  }
     # what to do for three way interaction
     if(length(terms) == 3){
       
@@ -327,41 +349,58 @@ plot_list <- lapply(1:nrow(sig_term), function(i){
                                        ymax=term_2[, paste0(sig_term$evaluation[i], '_upr')], 
                                        ymin=term_2[, paste0(sig_term$evaluation[i], '_lwr')], 
                                        group = term_2[,terms[2]], 
-                                       fill = term_2[,terms[2]]), alpha = 0.5) + 
+                                       fill = as.factor(round(term_2[,terms[2]],2))), alpha = 0.5) + 
         geom_line(data = term_2, aes(x = term_2[,terms[1]], 
                                      y = term_2[,sig_term$evaluation[i]],
                                      group = term_2[,terms[2]])) + 
-        scale_fill_gradientn(colours = viridis(3, option = colour, begin = 0.2, end = 0.8), 
-                             name = terms[2]) + 
+        scale_fill_manual(values = viridis(3, option = colour), 
+                          name = terms[2], 
+                          guide = guide_legend(direction = 'horizontal',
+                                               title.hjust = 0.5,
+                                               nrow = 1, 
+                                               label.position = 'bottom',
+                                               keyheight = unit(2, units = "mm"),
+                                               title.position = 'top',
+                                               reverse = F)) + 
         xlab(terms[1]) + 
         ylab(sig_term$evaluation[i]) + 
-        theme(aspect.ratio = 1)
+        theme(aspect.ratio = 2, 
+              legend.position = c(0.1,0.2), 
+              legend.text = element_text(size = 9), 
+              legend.title = element_text(size = 9)) + 
+        scale_y_continuous(breaks = seq(0, 1, 0.1), limits = limits)
       
       term_3_plot <- ggplot() + 
         geom_ribbon(data = term_3, aes(x = term_3[,terms[1]], 
                                        ymax=term_3[, paste0(sig_term$evaluation[i], '_upr')], 
                                        ymin=term_3[, paste0(sig_term$evaluation[i], '_lwr')], 
                                        group = term_3[,terms[3]], 
-                                       fill = term_3[,terms[3]]), alpha = 0.5) + 
+                                       fill = as.factor(round(term_3[,terms[3]],2))), alpha = 0.5) + 
         geom_line(data = term_3, aes(x = term_3[,terms[1]], 
                                      y = term_3[,sig_term$evaluation[i]],
                                      group = term_3[,terms[3]])) + 
-        scale_fill_gradientn(colours = viridis(3, option = colour, begin = 0.2, end = 0.8), 
-                             name = terms[3]) + 
+        scale_fill_manual(values = viridis(3, option = colour), 
+                          name = terms[3], 
+                          guide = guide_legend(direction = 'horizontal',
+                                               title.hjust = 0.5,
+                                               nrow = 1, 
+                                               label.position = 'bottom',
+                                               keyheight = unit(2, units = "mm"),
+                                               title.position = 'top',
+                                               reverse = F)) + 
         xlab(terms[1]) + 
         ylab(sig_term$evaluation[i]) + 
-        theme(aspect.ratio = 1)
+        theme(aspect.ratio = 2, 
+              legend.position = c(0.1,0.2), 
+              legend.text = element_text(size = 9), 
+              legend.title = element_text(size = 9)) + 
+        scale_y_continuous(breaks = seq(0, 1, 0.1), limits = limits)
       
-      dir.create(paste0(directory, '_marginal'), recursive = T)
-      pdf(file = paste0(paste0(directory, '_marginal'), '/', name,'_3-way', '.pdf'), width = 8, height = 4)
-      print(patchwork::wrap_plots(list(term_2_plot, term_3_plot)))
-      dev.off()
+      plot_list <- list(term_2_plot, term_3_plot)
       
-      plot_list <- NULL
-      
-      return(plot_list)
-      
-      }}else{
+    }
+  
+  if(sum(c(interaction == T, length(terms)==3))==0){
   
   input_data[[i]] <- prediction_frame[,c(sig_term$term[i], 
                                          sig_term$evaluation[i], 
@@ -372,27 +411,43 @@ plot_list <- lapply(1:nrow(sig_term), function(i){
   plot_list <- ggplot() + 
     geom_ribbon(data = input_data[[i]], aes(x = input_data[[i]][,sig_term$term[i]], 
                     ymax=input_data[[i]][, paste0(sig_term$evaluation[i], '_upr')], 
-                    ymin=input_data[[i]][, paste0(sig_term$evaluation[i], '_lwr')]), 
-                fill = 'gray50', alpha = 0.5) + 
+                    ymin=input_data[[i]][, paste0(sig_term$evaluation[i], '_lwr')]),
+                alpha = 1, fill = viridis(10, option = colour, begin = 0.2, end = 0.8)[5]) + 
     geom_line(data = input_data[[i]], aes(x = input_data[[i]][,sig_term$term[i]], 
                   y = input_data[[i]][,sig_term$evaluation[i]])) + 
     xlab(sig_term$term[i]) + 
     ylab(sig_term$evaluation[i]) + 
-    theme(aspect.ratio = 1)
+    theme(aspect.ratio = 2) + 
+    scale_y_continuous(breaks = seq(0, 1, 0.1), limits = limits) 
+    
   
   }
   
-  return(plot_list)
+  
+  if(sum(class(plot_list) %in% 'ggplot') == 1){
+  dir.create(paste0(directory, '_marginal', '/', name), recursive = T)
+  pdf(file = paste0(directory, '_marginal', '/', name, '/', sig_term$evaluation[i], '-',sig_term$term[i],'.pdf'),
+      width = width_marginal, height = height_marginal)
+  print(plot_list)
+  dev.off()
+  }
+  
+  if(class(plot_list) == 'list'){
+    dir.create(paste0(directory, '_marginal', '/', name), recursive = T)
+    pdf(file = paste0(directory, '_marginal', '/', name, '/', sig_term$evaluation[i], '-',sig_term$term[i], '.pdf'), width = width_marginal*length(plot_list), height = height_marginal)
+  print(patchwork::wrap_plots(plot_list))
+  dev.off()
+  }
   
 })
 
-plot_list <- purrr::compact(plot_list)
+# plot_list <- purrr::compact(plot_list)
 
-# create directory for marginal plots
-dir.create(paste0(directory, '_marginal'), recursive = T)
-pdf(file = paste0(paste0(directory, '_marginal'), '/', name,'.pdf'), width = width_marginal, height = height_marginal)
-print(patchwork::wrap_plots(plot_list))
-dev.off()
+# # create directory for marginal plots
+# dir.create(paste0(directory, '_marginal'), recursive = T)
+# pdf(file = paste0(paste0(directory, '_marginal'), '/', name,'.pdf'), width = width_marginal, height = height_marginal)
+# print(patchwork::wrap_plots(plot_list))
+# dev.off()
 
 }
 

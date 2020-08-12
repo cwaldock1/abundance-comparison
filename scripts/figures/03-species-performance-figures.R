@@ -209,8 +209,8 @@ best_model_assessments %>%
                                  directory = 'figures/species-performance-figures/trait-interaction-models/', 
                                  name      = paste(dataset, cross_validation, sep = '-'), 
                                  dataset   = dataset, 
-                                 width_marginal     = 12, 
-                                 height_marginal    = 4)))
+                                 width_marginal     = 3, 
+                                 height_marginal    = 3)))
 
 best_model_assessments %>% 
   group_by(dataset, cross_validation) %>% 
@@ -219,8 +219,8 @@ best_model_assessments %>%
   mutate(test = purrr::map(data, ~interaction_trait_plots(., 
                                                           directory = 'figures/species-performance-figures/trait-interaction-models/', 
                                                           name      = paste(dataset, cross_validation, sep = '-'), 
-                                                          width_marginal     = 13, 
-                                                          height_marginal    = 8, 
+                                                          width_marginal     = 3, 
+                                                          height_marginal    = 3, 
                                                           dataset   = dataset)))
 
 best_model_assessments %>% 
@@ -230,8 +230,8 @@ best_model_assessments %>%
   mutate(test = purrr::map(data, ~interaction_trait_plots(., 
                                                           directory = 'figures/species-performance-figures/trait-interaction-models/', 
                                                           name      = paste(dataset, cross_validation, sep = '-'), 
-                                                          width_marginal     = 8, 
-                                                          height_marginal    = 6, 
+                                                          width_marginal     = 3, 
+                                                          height_marginal    = 3, 
                                                           dataset   = dataset)))
 
 best_model_assessments %>% 
@@ -241,8 +241,8 @@ best_model_assessments %>%
   mutate(test = purrr::map(data, ~interaction_trait_plots(., 
                                                           directory = 'figures/species-performance-figures/trait-interaction-models/', 
                                                           name      = paste(dataset, cross_validation, sep = '-'), 
-                                                          width_marginal     = 8, 
-                                                          height_marginal    = 4, 
+                                                          width_marginal     = 3, 
+                                                          height_marginal    = 3, 
                                                           dataset   = dataset)))
 
 
@@ -250,7 +250,7 @@ best_model_assessments %>%
 # testing creating marginal effect plots for significant terms 
 best_model_assessments %>% 
    group_by(dataset, cross_validation) %>% 
-   nest() %>% .$data %>% .[[4]] -> plot_data
+   nest() %>% .$data %>% .[[2]] -> plot_data
  
 
 
