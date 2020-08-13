@@ -198,6 +198,13 @@ best_model_assessments <- left_join(best_models_each_scale ,
 
 #saveRDS(best_model_assessments, file = 'results/model_assessment_scale/scale_compiled.RDS')
 
+best_model_assessments <- readRDS(file = 'results/model_assessment_scale/scale_compiled.RDS')
+
+# percentages for summaries in paper
+best_model_assessments %>% filter(cross_validation == 'basic',spatial_scale == 'spatial_scale_10') %>% .$fitted_model %>% table /
+  nrow(best_model_assessments %>% filter(cross_validation == 'basic',spatial_scale == 'spatial_scale_10')) *100
+best_model_assessments %>% filter(cross_validation == 'cv',spatial_scale == 'spatial_scale_10') %>% .$fitted_model %>% table /
+  nrow(best_model_assessments %>% filter(cross_validation == 'cv',spatial_scale == 'spatial_scale_10')) *100
 
 # calculate proportions
 best_model_props <- best_model_assessments %>% 

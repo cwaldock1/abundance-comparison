@@ -616,5 +616,15 @@ for(i in 1:length(model_type)){
   
 }
 
-writexl::write_xlsx(summary_evals, path = 'figures/model-prediction-figures/validation_best_models_aggregated/aggregate_summaries.xlsx')
+summary_evals_2 <- do.call(rbind, summary_evals) %>% 
+  mutate(rescaled = ifelse(grepl('_',name), 'rescaled', 'normal'), 
+         name     = gsub('_rescaled','', name)) %>% 
+  pivot_wider(., names_from = rescaled, values_from= median_value:IQR.75) %>% 
+  .[order(.$cross_validation,.$dataset,  .$name),]
+
+writexl::write_xlsx(summary_evals_2, path = 'figures/model-prediction-figures/validation_best_models_aggregated/aggregate_summaries.xlsx')
+
+
+
+
 

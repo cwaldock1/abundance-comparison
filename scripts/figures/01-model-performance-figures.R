@@ -283,6 +283,11 @@ all_assessments_relative <- all_assessments %>%
 best_model_assessments <- left_join(best_models , 
                                     all_assessments_relative %>% mutate(cross_validation = .$cross_validation_2))
 
+# summaries for optimal models
+best_model_assessments %>% filter(cross_validation == 'basic') %>% .$fitted_model %>% table / nrow(best_model_assessments %>% filter(cross_validation == 'basic')) *100
+best_model_assessments %>% filter(cross_validation == 'basic') %>% .$abundance_response %>% table / nrow(best_model_assessments %>% filter(cross_validation == 'basic'))
+best_model_assessments %>% filter(cross_validation == 'cv') %>% .$fitted_model %>% table / nrow(best_model_assessments %>% filter(cross_validation == 'basic')) *100
+best_model_assessments %>% filter(cross_validation == 'cv') %>% .$abundance_response %>% table / nrow(best_model_assessments %>% filter(cross_validation == 'basic'))
 
 # input data to function
 
