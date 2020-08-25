@@ -15,7 +15,7 @@ colours = colorRampPalette(c("#0099CC80","#9ECAE1","#58BC5D","#EEF559","#FF9933"
 
 levels = c('glm', 'gam', 'gbm', 'rf')
 
-metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')
+metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion')
 
 targets = list(#Armse    = c(0, -20, 20), 
                Amae     = c(0, -20, 20), 
@@ -24,8 +24,9 @@ targets = list(#Armse    = c(0, -20, 20),
                Dpearson    = c(1,  0, 1), 
                Dspearman   = c(1,  0, 1), 
                #Psd         = c(0,  0, 100), 
-               Pdispersion = c(1,  0, 20), 
-               Pr2         = c(1,  0, 1))
+               Pdispersion = c(1,  0, 20)#, 
+               #Pr2         = c(1,  0, 1)
+               )
 
 # load in evaluation data ----
 
@@ -207,7 +208,7 @@ plot_all_aggregated(all_assessments_relative$data[[1]] %>%
                       mutate(dataset = all_assessments_relative$data[[1]]$dataset, 
                              species_name = all_assessments_relative$data[[1]]$species_name), 
                     directory = 'figures/model-performance-figures/all_model_rescaled', 
-                    #colours = colours,
+                    colours = colours,
                     name = 'basic', 
                     levels = c('glm', 'gam', 'gbm', 'rf'))
 
@@ -223,7 +224,7 @@ plot_all_aggregated(all_assessments_relative$data[[2]] %>%
                       mutate(dataset = all_assessments_relative$data[[2]]$dataset, 
                              species_name = all_assessments_relative$data[[2]]$species_name), 
                     directory = 'figures/model-performance-figures/all_model_rescaled', 
-                    #colours = colours,
+                    colours = colours,
                     name = 'cv', 
                     levels = c('glm', 'gam', 'gbm', 'rf'))
 
@@ -255,7 +256,7 @@ best_models <- all_assessments %>%
   nest() %>% 
   mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(., 
                                                                   metrics = c('Amae', 'Dintercept', 'Dslope', 
-                                                                              'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
+                                                                              'Dpearson', 'Dspearman', 'Pdispersion')))) %>% 
   .$metric_aggregation %>% 
   do.call(rbind, .) %>% 
   na.omit(.) %>% 
@@ -274,7 +275,7 @@ all_assessments_relative <- all_assessments %>%
   nest() %>% 
   mutate(metric_aggregation = purrr::map(data, 
                                          ~aggregate_metrics(., 
-                                                            metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
+                                                            metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion')))) %>% 
   unnest(metric_aggregation) %>% 
   dplyr::select(-data) %>% 
   ungroup()
@@ -285,12 +286,23 @@ best_model_assessments <- left_join(best_models ,
 
 # summaries for optimal models
 best_model_assessments %>% filter(cross_validation == 'basic') %>% .$fitted_model %>% table / nrow(best_model_assessments %>% filter(cross_validation == 'basic')) *100
+#gam        gbm        glm         rf 
+#1.5161503  8.2399473  0.9228741 89.3210283 
+
 best_model_assessments %>% filter(cross_validation == 'basic') %>% .$abundance_response %>% table / nrow(best_model_assessments %>% filter(cross_validation == 'basic'))
+#abun        abun-occ abun-occ-2stage 
+#0.2175346       0.6222808       0.1601846 
+
 best_model_assessments %>% filter(cross_validation == 'cv') %>% .$fitted_model %>% table / nrow(best_model_assessments %>% filter(cross_validation == 'basic')) *100
+#gam      gbm      glm       rf 
+#17.93013 20.17139 30.65260 30.58668 
+
 best_model_assessments %>% filter(cross_validation == 'cv') %>% .$abundance_response %>% table / nrow(best_model_assessments %>% filter(cross_validation == 'basic'))
+#abun        abun-occ abun-occ-2stage 
+#0.2043507       0.5418589       0.2471984 
 
 # input data to function
-
+library(viridis)
 best_model_assessments %>% 
   filter(cross_validation == 'basic') %>% 
   spp_best_assessment_metrics(., 
@@ -378,7 +390,7 @@ all_assessments_best_relative <- all_assessments_best %>%
   nest() %>% 
   mutate(metric_aggregation = purrr::map(data, 
                                          ~aggregate_metrics(., 
-                                                            metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
+                                                            metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion')))) %>% 
   unnest(metric_aggregation) %>% 
   dplyr::select(-data) %>% 
   ungroup()
@@ -407,6 +419,8 @@ plot_all_aggregated(all_assessments_best_relative_plot$data[[2]],
 
 
 # correlation plots amongst best models ----
+
+# run the previous best model code
 
 # plots
 best_model_assessments %>% 

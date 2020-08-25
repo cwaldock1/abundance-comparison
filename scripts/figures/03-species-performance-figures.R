@@ -17,7 +17,7 @@ colours = colorRampPalette(c("#0099CC80","#9ECAE1","#58BC5D","#EEF559","#FF9933"
 
 levels = c('glm', 'gam', 'gbm', 'rf')
 
-metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')
+metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion')
 
 targets = list(Armse    = c(0, -20, 20), 
                Amae     = c(0, -20, 20), 
@@ -49,7 +49,7 @@ all_assessments <- all_assessments %>% select(-family_grouped_simple, -family_gr
   
   # select final columns for this script
   select(dataset, cross_validation, cross_validation_2, fitted_model, abundance_response, plot_level, species_name, n_abundance,
-         Armse, Amae, Dintercept, Dslope, Dpearson, Dspearman, Psd, Pdispersion, Pr2, Evaluation_number, Evaluation_message) %>% 
+         Armse, Amae, Dintercept, Dslope, Dpearson, Dspearman, Psd, Pdispersion, Evaluation_number, Evaluation_message) %>% 
   
   # change abundance_response
   mutate(abundance_response = plyr::revalue(.$abundance_response, c(abunocc = "abun-occ", abunocc_2stage = "abun-occ-2stage")))
@@ -62,7 +62,7 @@ best_models <- all_assessments %>%
   nest() %>% 
   mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(., 
                                                                   metrics = c('Amae', 'Dintercept', 'Dslope', 
-                                                                              'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
+                                                                              'Dpearson', 'Dspearman', 'Pdispersion')))) %>% 
   .$metric_aggregation %>% 
   do.call(rbind, .) %>% 
   na.omit(.) %>% 
@@ -83,7 +83,7 @@ all_assessments_relative <- all_assessments %>%
   nest() %>% 
   mutate(metric_aggregation = purrr::map(data, 
                                          ~aggregate_metrics(., 
-                                                            metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
+                                                            metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion')))) %>% 
   unnest(metric_aggregation) %>% 
   dplyr::select(-data) %>% 
   ungroup()
@@ -109,79 +109,79 @@ all_assessments_relative %>%
 
 
 # compare relative performance of best models across species and sampling properties ----
-
-# get the best models and their assessment values
-best_model_assessments <- left_join(best_models , 
-                                    all_assessments_relative %>% mutate(cross_validation = .$cross_validation_2))
-
-# check for NAs any species assessments if evaluations could not be assessed 
-lapply(best_model_assessments, function(x) table(is.na(x)))
-
-# join in species attributes to model assessments
-best_model_assessments <- left_join(rbind(bbs_species, rls_species) %>% filter(species_name %in% unique(best_model_assessments$species_name)), 
-                                    best_model_assessments)
-
-# convert values to high and across multiple aspects
-best_model_assessments <- best_model_assessments %>% 
-  mutate(frequency_group = ifelse(frequency_perc >= 0.75, 'high-freq', 
-                                  ifelse(frequency_perc <= 0.25, 'low-freq', NA)), 
-         mean_abundance_group = ifelse(mean_abundance_perc >= 0.75, 'high-abun', 
-                                       ifelse(mean_abundance_perc <= 0.25, 'low-abun', NA)), 
-         sampling_group = ifelse(ecdf(n_abundance)(n_abundance) >= 0.75, 'high-data', 
-                                       ifelse(ecdf(n_abundance)(n_abundance) <= 0.25, 'low-data', NA))) %>% 
-  na.omit()
-  
-
-# create data for plotting
-trait_data <- best_model_assessments %>% 
-  group_by(dataset, cross_validation, frequency_group, mean_abundance_group, sampling_group) %>% 
-  do(accuracy_median = median(.$accuracy, na.rm = T), 
-     acc_upr    = quantile(.$accuracy, 0.75, na.rm = T), 
-     acc_lwr    = quantile(.$accuracy, 0.25, na.rm = T), 
-     
-     discrimination_median = median(.$discrimination, na.rm = T), 
-     dis_upr    = quantile(.$discrimination, 0.75, na.rm = T), 
-     dis_lwr    = quantile(.$discrimination, 0.25, na.rm = T), 
-     
-     precision_median = median(.$precision, na.rm = T), 
-     pre_upr    = quantile(.$precision, 0.75, na.rm = T), 
-     pre_lwr    = quantile(.$precision, 0.25, na.rm = T), 
-     
-     all_median = median(.$aggregated_evaluation_metrics, na.rm = T), 
-     all_upr    = quantile(.$aggregated_evaluation_metrics, 0.75, na.rm = T), 
-     all_lwr    = quantile(.$aggregated_evaluation_metrics, 0.25, na.rm = T)) %>% 
-  unnest() %>% 
-  pivot_longer(., cols = c(accuracy_median, discrimination_median, precision_median, all_median), names_to = 'median', values_to = 'median_value') %>% 
-  pivot_longer(., cols = c(acc_lwr, dis_lwr, pre_lwr, all_lwr), names_to = 'lwr', values_to = 'lwr_value') %>% 
-  pivot_longer(., cols = c(acc_upr, dis_upr, pre_upr, all_upr), names_to = 'upr', values_to = 'upr_value') %>% 
-  mutate(evaluation_group = gsub('_median', '', .$median))
-  
-trait_data$evaluation_group = factor(trait_data$evaluation_group, levels = c('accuracy', 'precision', 'discrimination', 'all'))
-trait_data$facet_factor     = factor(paste(trait_data$frequency_group, trait_data$evaluation_group), 
-                                     levels = 
-                                       unique(paste(trait_data$frequency_group, trait_data$evaluation_group))[c(1,5,2,6,3,7,4,8)])
-
-pdf('figures/species-performance-figures/abun-data-freq-effects/basic.pdf', width = 6, height = 6)
-ggplot(data = trait_data %>% 
-         filter(cross_validation == 'basic') %>% 
-         filter(evaluation_group != 'all')) + 
-  geom_rect(aes(fill = sampling_group), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, alpha = 0.5) + 
-  geom_point(aes(x = mean_abundance_group, y = median_value, group = dataset, colour = dataset), position=position_dodge(width=0.5)) + 
-  geom_line(aes(x = mean_abundance_group, y = median_value, group = dataset, colour = dataset), position=position_dodge(width=0.5)) + 
-  facet_grid(evaluation_group ~  sampling_group + frequency_group) + 
-  theme_bw() + 
-  theme(aspect.ratio = 1, 
-        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1.05), 
-        panel.grid.major.x = element_blank()) + 
-  scale_colour_manual(values = colours[c(4,1)]) + 
-  scale_fill_manual(values = c('grey90', 'white')) + 
-  xlab(NULL) + 
-  ylab('relative model rank') + 
-  guides(fill = FALSE)
-dev.off()
-
-
-
+# 
+# # get the best models and their assessment values
+# best_model_assessments <- left_join(best_models , 
+#                                     all_assessments_relative %>% mutate(cross_validation = .$cross_validation_2))
+# 
+# # check for NAs any species assessments if evaluations could not be assessed 
+# lapply(best_model_assessments, function(x) table(is.na(x)))
+# 
+# # join in species attributes to model assessments
+# best_model_assessments <- left_join(rbind(bbs_species, rls_species) %>% filter(species_name %in% unique(best_model_assessments$species_name)), 
+#                                     best_model_assessments)
+# 
+# # convert values to high and across multiple aspects
+# best_model_assessments <- best_model_assessments %>% 
+#   mutate(frequency_group = ifelse(frequency_perc >= 0.75, 'high-freq', 
+#                                   ifelse(frequency_perc <= 0.25, 'low-freq', NA)), 
+#          mean_abundance_group = ifelse(mean_abundance_perc >= 0.75, 'high-abun', 
+#                                        ifelse(mean_abundance_perc <= 0.25, 'low-abun', NA)), 
+#          sampling_group = ifelse(ecdf(n_abundance)(n_abundance) >= 0.75, 'high-data', 
+#                                        ifelse(ecdf(n_abundance)(n_abundance) <= 0.25, 'low-data', NA))) %>% 
+#   na.omit()
+#   
+# 
+# # create data for plotting
+# trait_data <- best_model_assessments %>% 
+#   group_by(dataset, cross_validation, frequency_group, mean_abundance_group, sampling_group) %>% 
+#   do(accuracy_median = median(.$accuracy, na.rm = T), 
+#      acc_upr    = quantile(.$accuracy, 0.75, na.rm = T), 
+#      acc_lwr    = quantile(.$accuracy, 0.25, na.rm = T), 
+#      
+#      discrimination_median = median(.$discrimination, na.rm = T), 
+#      dis_upr    = quantile(.$discrimination, 0.75, na.rm = T), 
+#      dis_lwr    = quantile(.$discrimination, 0.25, na.rm = T), 
+#      
+#      precision_median = median(.$precision, na.rm = T), 
+#      pre_upr    = quantile(.$precision, 0.75, na.rm = T), 
+#      pre_lwr    = quantile(.$precision, 0.25, na.rm = T), 
+#      
+#      all_median = median(.$aggregated_evaluation_metrics, na.rm = T), 
+#      all_upr    = quantile(.$aggregated_evaluation_metrics, 0.75, na.rm = T), 
+#      all_lwr    = quantile(.$aggregated_evaluation_metrics, 0.25, na.rm = T)) %>% 
+#   unnest() %>% 
+#   pivot_longer(., cols = c(accuracy_median, discrimination_median, precision_median, all_median), names_to = 'median', values_to = 'median_value') %>% 
+#   pivot_longer(., cols = c(acc_lwr, dis_lwr, pre_lwr, all_lwr), names_to = 'lwr', values_to = 'lwr_value') %>% 
+#   pivot_longer(., cols = c(acc_upr, dis_upr, pre_upr, all_upr), names_to = 'upr', values_to = 'upr_value') %>% 
+#   mutate(evaluation_group = gsub('_median', '', .$median))
+#   
+# trait_data$evaluation_group = factor(trait_data$evaluation_group, levels = c('accuracy', 'precision', 'discrimination', 'all'))
+# trait_data$facet_factor     = factor(paste(trait_data$frequency_group, trait_data$evaluation_group), 
+#                                      levels = 
+#                                        unique(paste(trait_data$frequency_group, trait_data$evaluation_group))[c(1,5,2,6,3,7,4,8)])
+# 
+# pdf('figures/species-performance-figures/abun-data-freq-effects/basic.pdf', width = 6, height = 6)
+# ggplot(data = trait_data %>% 
+#          filter(cross_validation == 'basic') %>% 
+#          filter(evaluation_group != 'all')) + 
+#   geom_rect(aes(fill = sampling_group), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, alpha = 0.5) + 
+#   geom_point(aes(x = mean_abundance_group, y = median_value, group = dataset, colour = dataset), position=position_dodge(width=0.5)) + 
+#   geom_line(aes(x = mean_abundance_group, y = median_value, group = dataset, colour = dataset), position=position_dodge(width=0.5)) + 
+#   facet_grid(evaluation_group ~  sampling_group + frequency_group) + 
+#   theme_bw() + 
+#   theme(aspect.ratio = 1, 
+#         axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1.05), 
+#         panel.grid.major.x = element_blank()) + 
+#   scale_colour_manual(values = colours[c(4,1)]) + 
+#   scale_fill_manual(values = c('grey90', 'white')) + 
+#   xlab(NULL) + 
+#   ylab('relative model rank') + 
+#   guides(fill = FALSE)
+# dev.off()
+# 
+# 
+# 
 
 
 # fit models for best species and produce interaction plots ---- 
@@ -199,6 +199,10 @@ best_model_assessments <- left_join(rbind(bbs_species, rls_species) %>% filter(s
 
 # create ranked sampling column
 best_model_assessments$sampling_n_perc <- ecdf(best_model_assessments$Evaluation_number)(best_model_assessments$Evaluation_number)
+
+# load plyr for round_any
+require(plyr)
+require(dplyr)
 
 # create plots and model outputs 
 best_model_assessments %>% 

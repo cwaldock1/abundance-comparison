@@ -20,7 +20,7 @@ error_2 = round(rnorm(100, 0, 3))
 int_adj_2 <- +7.5
 slope_adj_2 <- -0.5
 
-y_2 = ((slope+slope_adj)*x + (intercept+int_adj)) + error_2
+y_2 = ((slope+slope_adj_2)*x + (intercept+int_adj_2)) + error_2
 
 # estimate residuals
 residal_lines <- (y_2 - lm_line) + lm_line
@@ -31,10 +31,10 @@ conc_fig <- ggplot() +
   geom_linerange(aes(x = x, ymin = ifelse(lm_line < residal_lines, residal_lines, lm_line), 
                      ymax = ifelse(lm_line > residal_lines, residal_lines, lm_line)), alpha = 0.5) +
   #geom_point(aes(x = x, y = y), size = 5, alpha = 0.5, pch = 19, stroke = 0, col =cols[4]) +
-  geom_point(aes(x = x, y = y_2), size = 7, alpha = 1, pch = 19, stroke = 0, col = cols[1]) +
+  geom_point(aes(x = x, y = y_2), size = 5, alpha = 1, pch = 19, stroke = 0, col = 'gray50') +
   geom_abline(aes(slope = slope, intercept = intercept), col = 'black') + 
   #geom_abline(aes(slope = slope+slope_adj_1, intercept = intercept+int_adj_1), col = cols[4]) +
-  geom_abline(aes(slope = slope+slope_adj_2, intercept = intercept+int_adj_2), col = '#1F407A') + 
+  geom_abline(aes(slope = slope+slope_adj_2, intercept = intercept+int_adj_2), col = 'black', lty = 2) + 
   ylim(c(0, max(y_2) + 2)) + 
   xlim(c(0, (max(y) + 2))) + 
   xlab(NULL) + 

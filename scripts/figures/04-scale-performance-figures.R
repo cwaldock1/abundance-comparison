@@ -15,7 +15,7 @@ colours = colorRampPalette(c("#0099CC80","#9ECAE1","#58BC5D","#EEF559","#FF9933"
 
 levels = c('glm', 'gam', 'gbm', 'rf')
 
-metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')
+metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion')
 
 targets = list(#Armse    = c(0, -20, 20), 
                Amae     = c(0, -20, 20), 
@@ -103,27 +103,27 @@ plot_all_aggregated_spatial_scale(all_assessments_relative$data[[2]] %>%
 
 # distribution of the values in models selected as 'best' ----
 
-# # find the best model for a species at the finest spatial scale
-# best_scale_0.1 <- all_assessments %>% 
-#   filter(spatial_scale == 'spatial_scale_0.1') %>% 
-#   select(-Armse, -Psd) %>% 
-#   # estimate the relative metric performance within a cross validation and dataset
-#   group_by(cross_validation_2, dataset) %>% 
-#   nest() %>% 
-#   mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(., 
-#                                                                 metrics = c('Amae', 'Dintercept', 'Dslope', 
-#                                                                             'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
-#   .$metric_aggregation %>% 
-#   do.call(rbind, .) %>% 
-#   na.omit(.) %>% 
-#   # find the best fitting model for each species within each fitted_model
-#   group_by(species_name, spatial_scale, cross_validation) %>% 
-#   do(best_model = .$plot_level[which.max(.$discrimination)]) %>% 
-#   unnest(cols = c('best_model')) %>% 
-#   select(-spatial_scale) 
-# 
-# # pre-able to filter the best models at a 0.1 scale from the total assessments of scale
-# all_best_scale_0.1 <- data.table(best_scale_0.1 %>% mutate(plot_level = best_model) %>% select(-best_model))
+# find the best model for a species at the finest spatial scale
+best_scale_0.1 <- all_assessments %>% 
+ filter(spatial_scale == 'spatial_scale_0.1') %>% 
+ select(-Armse, -Psd) %>% 
+ # estimate the relative metric performance within a cross validation and dataset
+ group_by(cross_validation_2, dataset) %>% 
+ nest() %>% 
+ mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(., 
+                                                               metrics = c('Amae', 'Dintercept', 'Dslope', 
+                                                                           'Dpearson', 'Dspearman', 'Pdispersion')))) %>% 
+ .$metric_aggregation %>% 
+ do.call(rbind, .) %>% 
+ na.omit(.) %>% 
+ # find the best fitting model for each species within each fitted_model
+ group_by(species_name, spatial_scale, cross_validation) %>% 
+ do(best_model = .$plot_level[which.max(.$discrimination)]) %>% 
+ unnest(cols = c('best_model')) %>% 
+ select(-spatial_scale) 
+
+# pre-able to filter the best models at a 0.1 scale from the total assessments of scale
+all_best_scale_0.1 <- data.table(best_scale_0.1 %>% mutate(plot_level = best_model) %>% select(-best_model))
 
 # read in overall best model object
 overall_best_models <- readRDS('results/overall_best_models.RDS')
@@ -140,12 +140,15 @@ best_models_scale <- best_models_scale %>% mutate(dataset = gsub('_basic|_oob_cv
   mutate(dataset = plyr::revalue(.$dataset, c(bbs_cv = 'bbs', rls_cv = 'rls')))
 
 # save and read in best_models_scale object
-# saveRDS(best_models_scale, file = 'results/scale_best_models.RDS')
+saveRDS(best_models_scale, file = 'results/scale_best_models.RDS')
 best_models_scale <- readRDS(file = 'results/scale_best_models.RDS')
 
 # input data to function
 
 plot_data = best_models_scale # for debugging function
+
+# conver to data.frame
+best_models_scale <- data.frame(best_models_scale)
 
 best_models_scale %>% 
   spp_best_assessment_metrics_scale(plot_data = ., 
@@ -168,7 +171,7 @@ best_models_each_scale <- all_assessments %>%
   nest() %>% 
   mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(., 
                                                                   metrics = c('Amae', 'Dintercept', 'Dslope', 
-                                                                              'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
+                                                                              'Dpearson', 'Dspearman', 'Pdispersion')))) %>% 
   .$metric_aggregation %>% 
   do.call(rbind, .) %>% 
   na.omit(.) %>% 
@@ -187,7 +190,7 @@ all_assessments_relative <- all_assessments %>%
   nest() %>% 
   mutate(metric_aggregation = purrr::map(data, 
                                          ~aggregate_metrics(., 
-                                                            metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
+                                                            metrics = c('Amae', 'Dintercept', 'Dslope', 'Dpearson', 'Dspearman', 'Pdispersion')))) %>% 
   unnest(metric_aggregation) %>% 
   dplyr::select(-data) %>% 
   ungroup()
@@ -196,15 +199,23 @@ all_assessments_relative <- all_assessments %>%
 best_model_assessments <- left_join(best_models_each_scale , 
                                     all_assessments_relative %>% mutate(cross_validation = .$cross_validation_2))
 
-#saveRDS(best_model_assessments, file = 'results/model_assessment_scale/scale_compiled.RDS')
+# saveRDS(best_model_assessments, file = 'results/scale_compiled.RDS')
 
-best_model_assessments <- readRDS(file = 'results/model_assessment_scale/scale_compiled.RDS')
+best_model_assessments <- readRDS(file = 'results/scale_compiled.RDS')
 
 # percentages for summaries in paper
 best_model_assessments %>% filter(cross_validation == 'basic',spatial_scale == 'spatial_scale_10') %>% .$fitted_model %>% table /
   nrow(best_model_assessments %>% filter(cross_validation == 'basic',spatial_scale == 'spatial_scale_10')) *100
+
+# gam       gbm       glm        rf 
+# 5.000000  8.904110  3.561644 82.534247 
+
 best_model_assessments %>% filter(cross_validation == 'cv',spatial_scale == 'spatial_scale_10') %>% .$fitted_model %>% table /
   nrow(best_model_assessments %>% filter(cross_validation == 'cv',spatial_scale == 'spatial_scale_10')) *100
+
+# gam      gbm      glm       rf 
+# 18.00450 22.65566 29.33233 30.00750 
+
 
 # calculate proportions
 best_model_props <- best_model_assessments %>% 
@@ -275,9 +286,9 @@ list(best_models_scale %>%
   select(-Armse, -Psd) %>% 
   filter(spatial_scale %in% c(0.1, 10)) %>% 
   group_by(cross_validation, spatial_scale) %>% 
-  summarise_at(vars(c(Amae:Pr2)), list(median, sd)) %>% 
+  summarise_at(vars(c(Amae:Pdispersion)), list(median, sd)) %>% 
   ungroup() %>% 
-  pivot_longer(data = .,cols = Amae_fn1:Pr2_fn2, names_to = 'metric', values_to = 'value') %>% 
+  pivot_longer(data = .,cols = Amae_fn1:Pdispersion_fn2, names_to = 'metric', values_to = 'value') %>% 
   mutate(measure = ifelse(grepl('fn1', metric), 'median', 'sd'), 
          metric = gsub('_fn1|_fn2', '', metric)) %>% 
   pivot_wider(., names_from = measure, values_from = value) %>% 
@@ -291,9 +302,9 @@ list(best_models_scale %>%
   select(-Armse, -Psd) %>% 
   filter(spatial_scale %in% c(0.1, 10)) %>% 
   group_by(dataset, cross_validation, spatial_scale) %>% 
-  summarise_at(vars(c(Amae:Pr2)), list(median, sd)) %>% 
+  summarise_at(vars(c(Amae:Pdispersion)), list(median, sd)) %>% 
   ungroup() %>% 
-  pivot_longer(data = .,cols = Amae_fn1:Pr2_fn2, names_to = 'metric', values_to = 'value') %>% 
+  pivot_longer(data = .,cols = Amae_fn1:Pdispersion_fn2, names_to = 'metric', values_to = 'value') %>% 
   mutate(measure = ifelse(grepl('fn1', metric), 'median', 'sd'), 
          metric = gsub('_fn1|_fn2', '', metric)) %>% 
   pivot_wider(., names_from = measure, values_from = value) %>% 
@@ -311,9 +322,9 @@ list(best_models_scale %>%
        filter(spatial_scale %in% c(0.1, 10)) %>% 
   select(-Armse, -Psd) %>% 
   group_by(dataset, cross_validation, spatial_scale) %>% 
-  summarise_at(vars(c(Amae:Pr2)), list(mean)) %>% 
+  summarise_at(vars(c(Amae:Pdispersion)), list(mean)) %>% 
   ungroup() %>% 
-  pivot_longer(data = .,cols = Amae:Pr2, names_to = 'metric', values_to = 'value') %>% 
+  pivot_longer(data = .,cols = Amae:Pdispersion, names_to = 'metric', values_to = 'value') %>% 
   pivot_wider(., names_from = spatial_scale, values_from = value) %>% 
   mutate(baseline = `0.1`) %>% 
   mutate(`0.1` = ((`0.1` - baseline) / baseline)*100, 
@@ -331,9 +342,9 @@ list(best_models_scale %>%
     filter(spatial_scale %in% c(0.1, 10)) %>% 
     select(-Armse, -Psd) %>% 
     group_by(dataset, cross_validation, spatial_scale) %>% 
-    summarise_at(vars(c(Amae:Pr2)), list(mean)) %>% 
+    summarise_at(vars(c(Amae:Pdispersion)), list(mean)) %>% 
     ungroup() %>% 
-    pivot_longer(data = .,cols = Amae:Pr2, names_to = 'metric', values_to = 'value') %>% 
+    pivot_longer(data = .,cols = Amae:Pdispersion, names_to = 'metric', values_to = 'value') %>% 
     pivot_wider(., names_from = spatial_scale, values_from = value) %>% 
     mutate(baseline = `0.1`) %>% 
     mutate(`0.1` = ((`0.1` - baseline) / baseline)*100, 

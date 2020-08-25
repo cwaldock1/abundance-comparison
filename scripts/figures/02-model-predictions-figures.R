@@ -1,7 +1,7 @@
 # script to produce plots of predicted vs. modelled abundance across all model frameworks 
 
 # load libraries ----
-lib_vect <- c('tidyverse', 'cowplot', 'RColorBrewer', 'gridExtra')
+lib_vect <- c('tidyverse', 'cowplot', 'RColorBrewer', 'gridExtra', 'data.table')
 install.lib<-lib_vect[!lib_vect %in% installed.packages()]
 for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(lib_vect,require,character=TRUE)
@@ -43,7 +43,7 @@ all_assessments <- all_assessments %>% select(-family_grouped_simple, -family_gr
   
   # select final columns for this script
   select(dataset, cross_validation, cross_validation_2, fitted_model, abundance_response, plot_level, species_name,
-         Armse, Amae, Dintercept, Dslope, Dpearson, Dspearman, Psd, Pdispersion, Pr2, Evaluation_number, Evaluation_message) %>% 
+         Armse, Amae, Dintercept, Dslope, Dpearson, Dspearman, Pdispersion, Evaluation_number, Evaluation_message) %>% 
   
   # change abundance_response
   mutate(abundance_response = plyr::revalue(.$abundance_response, c(abunocc = "abun-occ", abunocc_2stage = "abun-occ-2stage")))
@@ -52,13 +52,13 @@ all_assessments <- all_assessments %>% select(-family_grouped_simple, -family_gr
 # overall this code finds the best fitted model for each species within a type of model and cross-validation and dataset combination. Use this object to left join to the true predictions and create plots
 # comparing each modelling frameworks overall predictions vs. observations. 
 best_models <- all_assessments %>% 
-  select(-Armse, -Psd) %>% 
+  select(-Armse) %>% 
   # estimate the relative metric performance within a cross validation and dataset
   group_by(cross_validation_2, dataset) %>% 
   nest() %>% 
   mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(., 
                                                                   metrics = c('Amae', 'Dintercept', 'Dslope', 
-                                                                              'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
+                                                                              'Dpearson', 'Dspearman', 'Pdispersion')))) %>% 
   .$metric_aggregation %>% 
   do.call(rbind, .) %>% 
   # find the best fitting model for each species within each fitted_model
@@ -158,7 +158,7 @@ best_models_overall <- all_assessments %>%
   nest() %>% 
   mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(., 
                                                                   metrics = c('Amae', 'Dintercept', 'Dslope', 
-                                                                              'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
+                                                                              'Dpearson', 'Dspearman', 'Pdispersion')))) %>% 
   .$metric_aggregation %>% 
   do.call(rbind, .) %>% 
   # find the best fitting model for each species within each fitted_model
@@ -264,13 +264,13 @@ for(i in 1:length(model_type)){
 # overall this code finds the best fitted model for each species within a type of model and cross-validation and dataset combination. Use this object to left join to the true predictions and create plots
 # comparing each modelling frameworks overall predictions vs. observations. 
 best_models_overall <- all_assessments %>% 
-  select(-Armse, -Psd) %>% 
+  select(-Armse) %>% 
   # estimate the relative metric performance within a cross validation and dataset
   group_by(cross_validation_2, dataset) %>% 
   nest() %>% 
   mutate(metric_aggregation = purrr::map(data, ~aggregate_metrics(., 
                                                                   metrics = c('Amae', 'Dintercept', 'Dslope', 
-                                                                              'Dpearson', 'Dspearman', 'Pdispersion', 'Pr2')))) %>% 
+                                                                              'Dpearson', 'Dspearman', 'Pdispersion')))) %>% 
   .$metric_aggregation %>% 
   do.call(rbind, .) %>% 
   # find the best fitting model for each species within each fitted_model
@@ -384,8 +384,9 @@ for(i in 1:length(model_type)){
   
   # get the summaries for all the metrics and save in a list
   summary_evals[[i]] <- evaluations %>% 
-    select(dataset, cross_validation, Armse_rescaled:Pr2_rescaled, Armse:Pr2) %>% 
-    pivot_longer(., cols = Armse_rescaled:Pr2) %>% 
+    select(dataset, cross_validation, Armse_rescaled:Pdispersion_rescaled, Armse:Pdispersion) %>% 
+    select(-Psd, -Psd_rescaled, -Armse, -Armse_rescaled) %>% 
+    pivot_longer(., cols = Amae_rescaled:Pdispersion) %>% 
     group_by(name) %>% 
     do(dataset = unique(.$dataset), 
        cross_validation = unique(.$cross_validation),
