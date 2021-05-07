@@ -22,20 +22,15 @@ Documented in table XX in supporting materials.
 
 # __scripts__
 
-## __organisation__: 
+## __overall script organisation__: 
 
 Scripts are organised into the following set of folders:  
   
 __data-processing__: This set of scripts processes the raw survey data, subsets to our focal species and provides the inputs to the model scripts.   
-__fitting-models__: This set of scripts provides a configuration script with calls a long script of model calls (model-functions are in seperate folder). These are run on the ethz landscape ecological group server.   
-__model-functions__: Contains the set of functions to run focal models.   
+__fitting-models__: This set of scripts provides a configuration script with calls a long script of model calls (model-functions are in seperate folder). These are run on the ethz landscape ecology group server.   
+__model-functions__: Contains the set of functions to run given model (rf, glm, gam, brt).   
 __evaluating-models__: Scripts to read and process the outputs of model calls. Here we want to produce one object that contains all the results and can be called into results scripts and figures scripts in standardized functions to produce a set of figures across the different ecological datasets.   
-
-Potentially necessary folders:   
-I want to avoid producing different scripts for the BBS data and the RLS data, and instead have a set of functions that produce the results of interest across these inputs so that they are easily modifiable and I won't have to copy and past results and figures scripts across to sets of scripts each time I change something in one script.   
-__results__: here a series of functions will act on the evaluating-models object to give a set of standard results of interest.   
-__figures__: here a series of functions will act on the evaluating-models object to give a set of standard results of interest.  
-
+__figures-R2__: here a series of functions will act on the evaluating-models object to give a set of standard results of interest.   
 
 ## __data-processing__
 
@@ -72,6 +67,7 @@ _environmental-cross-validation_:
 • produces a  set of oob cross-validation data to which models are later fitted and tested.
 
 
+
 ## __fitting-models__
 
 all models are fitted on the server of the landscape ecology group at ethz. 
@@ -81,12 +77,41 @@ all models are fitted on the server of the landscape ecology group at ethz.
 _fit_all_models.R_:  
 File that contains all model calls with varying parameter settings amongst functions. Loads all model functions and essentially runs all models. Is called by the configuration files. 
 
-### /batchscripts  
+### /batchscripts-all  
 
 Contains 4 .R scripts that produce 4 batch files which call the configuration files than run the fit_all_models.R script. 
 
 ### / rls or bbs 
 
 Contains two scripts each, one which runs the fit_all_models call using in-the-bag cross validation, and one that calls the fit_all_models.R script but using out-the-bag cross validation. 
+
+
+
+## __evaluating-models__
+
+_00-bind-prediction-outputs-server.R_  
+This step in the script binds together the prediction objects (observed vs. predictions for all the run models). This creates the input objects into the 01-evaluate-metrics-all-R2.R script. _bind-prediction-outputs.bat_ -> _00-bind-prediction-outputs-server.R_
+
+_01-evaluate-metrics-all-R2.R_: 
+For each species prediction and observations a set of evaluation metrics are calculated. Functions for this script are provided in _scripts/evaluating-models/functions/evaluation_functions.R_. Run with _batch_evaluate_metrics_all-R2_ -> _01-evaluate-metrics-all-R2.R_
+
+
+## __figures__ 
+
+_01-model-performance-figures.R_
+Set of figures summarising the performance of different modelling frameworks. 
+Functions for this script are provided in "scripts/figures/functions/model-performance-functions.R"
+
+_02-model-predictions-figures.R_
+Set of figures showing the observed and predicted values across different modelling frameworks. 
+Functions for this script are provided in "scripts/figures/functions/model-prediction-functions.R"
+
+_03-species-performance-figures.R_
+to be written. aim is to provide figures summarising performance of models across species' attributes of abundance and occupancy. 
+
+_04-spatial-projection-bbs-figures.R_
+_04-spatial-projection-rls-figures.R_
+to be writted. aim is to produce maps of difference in relative abundance and occurrence using 
+
 
 
